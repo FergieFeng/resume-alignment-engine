@@ -5,7 +5,7 @@
 
 ## Overview
 
-This project plan outlines the development of the PetCare Triage & Smart Booking Agent, a multi-agent POC for the MMAI 2026 Capstone. The system automates pet symptom intake, triage urgency classification, appointment routing, and provides safe owner guidance through an orchestrator-coordinated sub-agent architecture.
+This project plan outlines the development of the PetCare Triage & Smart Booking Agent, a multi-agent POC for the MMAI 891 Final Project. The system automates pet symptom intake, triage urgency classification, appointment routing, and provides safe owner guidance through an orchestrator-coordinated sub-agent architecture.
 
 ---
 
@@ -191,7 +191,7 @@ This project plan outlines the development of the PetCare Triage & Smart Booking
 | 7-sub-agent + orchestrator architecture | Matches canvas design; enables modular testing and clear safety boundaries | -- |
 | Session-only memory (no persistent PII) | Privacy-by-design; no need for cross-session data in POC | -- |
 | Synthetic data for all testing | No real PHI needed; enables rapid iteration and shareable test sets | -- |
-| Flask backend + vanilla JS frontend | Lightweight, fast to develop, consistent with capstone project patterns | -- |
+| Flask backend + vanilla JS frontend | Lightweight, fast to develop, consistent with MMAI 891 project patterns | -- |
 | Conservative triage defaults | Safety-first: when uncertain, escalate rather than under-triage | -- |
 
 ---

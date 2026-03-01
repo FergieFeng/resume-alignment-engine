@@ -3,7 +3,7 @@
 **Author:** Syed Ali Turab
 **Date:** March 1, 2026
 
-An AI-powered veterinary triage and smart booking agent that automates pet symptom intake, urgency classification, appointment routing, and provides safe owner guidance -- built as part of the MMAI NLP course Final Project at Queen's University.
+An AI-powered veterinary triage and smart booking agent that automates pet symptom intake, urgency classification, appointment routing, and provides safe owner guidance -- built as part of the MMAI 891 Final Project at Queen's University.
 
 The system reduces front-desk workload and improves clinical routing by automating the end-to-end intake workflow: symptom collection, red-flag detection, triage urgency scoring, appointment booking support, and vet-facing structured summaries, while providing safe, non-diagnostic "do/don't" guidance for pet owners during wait time.
 
@@ -15,17 +15,219 @@ The app is deployed and accessible online:
 
 - **URL:** *(deployment URL -- to be added)*
 - **Username:** `petcare`
-- **Password:** Reach out to the MMAI Capstone team
+- **Password:** Reach out to the MMAI 891 team
 
 > First load after inactivity may take ~30-60 seconds (free tier cold start). After that it's instant.
 
 ---
 
-## Architecture Diagram
+## Architecture
 
-![PetCare Triage Workflow](docs/images/architecture_workflow.png)
+### System Architecture (Full Stack)
 
-The diagram above shows the full sub-agent workflow: Trigger → Intake (A) → Safety Gate (B) → Confidence Gate (C) → Triage (D) → Routing (E) → Scheduling (F) → Guidance & Summary (G), with branching for emergency escalation and clarification loops.
+```mermaid
+graph TB
+    subgraph USER["👤 User Interface (Browser)"]
+        direction LR
+        UI_CHAT["💬 Chat UI<br/>HTML5 / CSS3 / JS"]
+        UI_VOICE["🎤 Voice Controls<br/>Mic / Speaker Toggle"]
+        UI_LANG["🌐 Language Selector<br/>7 Languages / RTL Support"]
+    end
+
+    subgraph FRONTEND["Frontend Layer (Vanilla JS — No Build Step)"]
+        direction LR
+        APP_JS["app.js<br/>• Session management<br/>• Message handling<br/>• Voice recording (MediaRecorder)<br/>• Web Speech API (Tier 1 STT/TTS)<br/>• Language switching + RTL<br/>• UI state management"]
+    end
+
+    subgraph DOCKER["🐳 Docker Container (petcare-agent:latest)"]
+
+        subgraph FLASK["Flask API Server (api_server.py — Port 5002)"]
+            direction LR
+            EP1["POST /api/session/start"]
+            EP2["POST /api/session/:id/message"]
+            EP3["GET /api/session/:id/summary"]
+            EP4["POST /api/voice/transcribe"]
+            EP5["POST /api/voice/synthesize"]
+            EP6["GET /api/health"]
+        end
+
+        subgraph ORCH["🧠 Orchestrator (orchestrator.py)"]
+            direction TB
+            ORCH_CORE["Coordinates 7-agent pipeline<br/>• Manages session state<br/>• Enforces safety rules<br/>• Handles branching logic<br/>• Assembles final response<br/>• Passes language to LLM agents"]
+        end
+
+        subgraph AGENTS["AI Sub-Agents (backend/agents/)"]
+            direction LR
+
+            subgraph LLM_AGENTS["🤖 LLM-Powered (API Calls)"]
+                A["Agent A<br/>Intake<br/>intake_agent.py"]
+                D["Agent D<br/>Triage<br/>triage_agent.py"]
+                G["Agent G<br/>Guidance + Summary<br/>guidance_summary.py"]
+            end
+
+            subgraph RULE_AGENTS["⚡ Rule-Based (Local — No API Cost)"]
+                B["Agent B<br/>Safety Gate<br/>safety_gate_agent.py"]
+                C["Agent C<br/>Confidence Gate<br/>confidence_gate.py"]
+                E["Agent E<br/>Routing<br/>routing_agent.py"]
+                F["Agent F<br/>Scheduling<br/>scheduling_agent.py"]
+            end
+        end
+
+        subgraph DATA["📁 Data Layer (JSON Config Files)"]
+            direction LR
+            D1["clinic_rules.json<br/>Triage rules, routing maps"]
+            D2["red_flags.json<br/>50+ emergency triggers"]
+            D3["available_slots.json<br/>Mock appointment schedule"]
+        end
+
+        subgraph SESSION["💾 Session Store"]
+            SS["In-Memory Python Dict<br/>• Pet profile<br/>• Symptoms<br/>• Conversation history<br/>• Agent outputs<br/>• Language preference"]
+        end
+    end
+
+    subgraph EXTERNAL["☁️ External APIs (HTTPS)"]
+        direction LR
+        subgraph OPENAI["OpenAI API"]
+            GPT["GPT-4.1 / GPT-4.1-mini<br/>Intake parsing, Triage,<br/>Guidance generation"]
+            WHISPER["Whisper API<br/>Speech-to-Text<br/>7 languages"]
+            TTS["TTS API (tts-1)<br/>Text-to-Speech<br/>13 voices, multilingual"]
+        end
+        subgraph ANTHROPIC["Anthropic API"]
+            CLAUDE["Claude 3.5 Sonnet<br/>Configurable fallback<br/>Safety-critical reasoning"]
+        end
+    end
+
+    USER --> FRONTEND
+    FRONTEND -->|"HTTP/HTTPS"| FLASK
+    FLASK --> ORCH
+    ORCH --> AGENTS
+    AGENTS -->|"LLM calls"| EXTERNAL
+    RULE_AGENTS --> DATA
+    FLASK --> SESSION
+    EP4 -->|"Audio upload"| WHISPER
+    EP5 -->|"Text input"| TTS
+
+    style USER fill:#1e40af,color:#fff
+    style DOCKER fill:#0f172a,color:#fff
+    style FLASK fill:#1e293b,color:#fff
+    style ORCH fill:#7c3aed,color:#fff
+    style LLM_AGENTS fill:#dc2626,color:#fff
+    style RULE_AGENTS fill:#16a34a,color:#fff
+    style DATA fill:#0369a1,color:#fff
+    style EXTERNAL fill:#92400e,color:#fff
+```
+
+### Agent Pipeline Flow
+
+```mermaid
+graph LR
+    START(("🐾 Pet Owner<br/>Sends Message")) --> A
+
+    A["🤖 Agent A<br/>INTAKE<br/>(LLM)<br/>Parse symptoms,<br/>build pet profile"] --> B
+
+    B["🛡️ Agent B<br/>SAFETY GATE<br/>(Rule-Based)<br/>Red-flag scan"] --> B_CHECK{Emergency?}
+
+    B_CHECK -->|"🚨 YES"| EMERGENCY["⚠️ EMERGENCY<br/>Immediate escalation<br/>Call vet now"]
+    B_CHECK -->|"✅ NO"| C
+
+    C["✅ Agent C<br/>CONFIDENCE GATE<br/>(Rule-Based)<br/>Field validation"] --> C_CHECK{Complete?}
+
+    C_CHECK -->|"❌ Missing fields"| CLARIFY["🔄 Ask user<br/>for clarification"]
+    CLARIFY --> A
+    C_CHECK -->|"✅ Complete"| D
+
+    D["📊 Agent D<br/>TRIAGE<br/>(LLM)<br/>Urgency classification"] --> E
+
+    E["🏥 Agent E<br/>ROUTING<br/>(Rule-Based)<br/>Appointment type"] --> F
+
+    F["📅 Agent F<br/>SCHEDULING<br/>(Rule-Based)<br/>Slot proposal"] --> G
+
+    G["📝 Agent G<br/>GUIDANCE + SUMMARY<br/>(LLM)<br/>Owner guidance +<br/>clinic summary"] --> OUTPUT
+
+    OUTPUT(("📤 Two Outputs"))
+    OUTPUT --> OWNER["👤 Owner Response<br/>Urgency + guidance +<br/>appointment"]
+    OUTPUT --> CLINIC["🏥 Clinic Summary<br/>Structured JSON<br/>(always English)"]
+
+    style A fill:#dc2626,color:#fff
+    style B fill:#16a34a,color:#fff
+    style C fill:#16a34a,color:#fff
+    style D fill:#dc2626,color:#fff
+    style E fill:#16a34a,color:#fff
+    style F fill:#16a34a,color:#fff
+    style G fill:#dc2626,color:#fff
+    style EMERGENCY fill:#991b1b,color:#fff
+    style CLARIFY fill:#f59e0b,color:#000
+```
+
+**Legend:** 🔴 Red = LLM-powered (API call, ~$0.002-0.004 each) · 🟢 Green = Rule-based (local, zero cost)
+
+### Voice Architecture
+
+```mermaid
+graph LR
+    subgraph TIER1["Tier 1: Browser Native (Free)"]
+        MIC1["🎤 Mic"] --> WSA["Web Speech API<br/>SpeechRecognition"]
+        WSA --> TEXT1["Text"]
+        RESP1["Response Text"] --> SYNTH["SpeechSynthesis"]
+        SYNTH --> SPEAKER1["🔊 Speaker"]
+    end
+
+    subgraph TIER2["Tier 2: OpenAI Whisper + TTS (~$0.02/session)"]
+        MIC2["🎤 Mic"] --> RECORD["MediaRecorder<br/>audio/webm"]
+        RECORD -->|"POST /api/voice/transcribe"| WHISPER2["Whisper API"]
+        WHISPER2 --> TEXT2["Text"]
+        RESP2["Response Text"] -->|"POST /api/voice/synthesize"| TTS2["OpenAI TTS<br/>(tts-1)"]
+        TTS2 --> SPEAKER2["🔊 MP3 Audio"]
+    end
+
+    subgraph TIER3["Tier 3: Realtime API (~$0.50/session) — Stretch"]
+        MIC3["🎤 Mic"] <-->|"WebSocket<br/>bidirectional"| REALTIME["OpenAI Realtime API<br/>gpt-realtime"]
+        REALTIME <--> SPEAKER3["🔊 Speaker"]
+    end
+
+    TEXT1 --> PIPELINE["Agent Pipeline"]
+    TEXT2 --> PIPELINE
+    PIPELINE --> RESP1
+    PIPELINE --> RESP2
+
+    style TIER1 fill:#16a34a,color:#fff
+    style TIER2 fill:#2563eb,color:#fff
+    style TIER3 fill:#7c3aed,color:#fff
+```
+
+### Technology Stack at a Glance
+
+| Layer | Technology | Cost |
+|-------|-----------|------|
+| **Frontend** | HTML5 / CSS3 / JavaScript (ES6+) | Free |
+| **Backend** | Python 3.11 + Flask | Free |
+| **LLM (Primary)** | OpenAI GPT-4.1-mini | ~$0.01/session |
+| **LLM (Fallback)** | Anthropic Claude 3.5 Sonnet | ~$0.02/session |
+| **Voice STT** | OpenAI Whisper | $0.006/min |
+| **Voice TTS** | OpenAI TTS (tts-1) | $15/1M chars |
+| **LLM Framework** | LangChain + LangChain-OpenAI | Free |
+| **Containerization** | Docker (single container) | Free |
+| **Hosting** | Render / Railway (free tier) | $0/mo |
+| **Languages** | 7 (EN, FR, ZH, AR, ES, HI, UR) | Free |
+| **Version Control** | Git + GitHub (`PetCare` branch) | Free |
+
+See [TECH_STACK.md](TECH_STACK.md) for full details, runtime architecture, and agent deployment model.
+
+### Deployment Roadmap
+
+```mermaid
+graph LR
+    DEV["🛠️ Local Dev<br/>Python + Flask<br/>Hot reload"] -->|"docker build"| DOCKER_LOCAL["🐳 Local Docker<br/>Same as prod<br/>Port 5002"]
+    DOCKER_LOCAL -->|"git push"| CLOUD["☁️ Cloud Deploy<br/>Render / Railway<br/>Auto-deploy on push"]
+    CLOUD -->|"Custom domain"| PROD["🌐 Production<br/>HTTPS · Health check<br/>Gunicorn (2 workers)"]
+
+    style DEV fill:#16a34a,color:#fff
+    style DOCKER_LOCAL fill:#2563eb,color:#fff
+    style CLOUD fill:#7c3aed,color:#fff
+    style PROD fill:#dc2626,color:#fff
+```
+
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for step-by-step instructions.
 
 ---
 

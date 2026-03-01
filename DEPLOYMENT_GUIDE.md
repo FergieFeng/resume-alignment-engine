@@ -215,7 +215,7 @@ petcare-agent:latest
 
 ## 4. Option C: Deploy to Render (Cloud -- Free)
 
-Best for: **live demo, sharing a URL with the team, capstone presentation**.
+Best for: **live demo, sharing a URL with the team, MMAI 891 presentation**.
 
 ### Step 1: Push Code to GitHub
 
