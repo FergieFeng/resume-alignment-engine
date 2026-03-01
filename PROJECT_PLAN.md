@@ -128,7 +128,65 @@ This project plan outlines the development of the PetCare Triage & Smart Booking
 
 ---
 
-## Phase 4: Evaluation & Testing (Week 6)
+## Phase 4: n8n Workflow Automation -- Actions Layer (Week 6)
+
+**Goal:** Add real-world automated actions that fire after the agent pipeline completes. This turns the POC from "chat interface" into "system that does things."
+
+### Why n8n?
+
+n8n is an open-source workflow automation platform (self-hostable via Docker, or free cloud tier). It receives webhook events from the PetCare backend and triggers downstream actions -- email, Slack, Google Sheets, etc. -- with zero code changes to the agent logic.
+
+### Architecture
+
+```
+PetCare Agent Pipeline → Intake Complete → POST webhook to n8n → n8n Workflows
+```
+
+The backend sends a JSON payload to an n8n webhook at key events. n8n handles everything after that.
+
+### n8n Workflows to Build
+
+| # | Workflow | Trigger Event | Actions | Priority |
+|---|----------|--------------|---------|----------|
+| 1 | **Emergency Alert** | Safety Gate detects red flag | → Slack message to #emergency channel → Email on-call vet with pet profile + symptoms | P0 |
+| 2 | **Clinic Summary Delivery** | Intake session completes | → Format structured summary → Email to clinic inbox → Append row to Google Sheet (intake log) | P0 |
+| 3 | **Appointment Confirmation** | Scheduling Agent proposes slot | → Email pet owner with appointment details → Add event to Google Calendar (mock) | P1 |
+| 4 | **Intake Analytics Logger** | Every completed session | → Log session data to Google Sheet (triage tier, confidence, latency, language used) → Use for evaluation metrics | P1 |
+| 5 | **Follow-Up Reminder** | 24 hours after routine triage | → Email pet owner with follow-up guidance → Link to re-start intake if symptoms worsen | P2 |
+
+### Implementation Tasks
+
+| Task | Owner | Status | Priority |
+|------|-------|--------|----------|
+| Set up n8n (Docker container or n8n Cloud free tier) | -- | Not Started | P0 |
+| Create `docker-compose.yml` for petcare + n8n multi-container | -- | Not Started | P0 |
+| Add webhook trigger endpoints to `api_server.py` | -- | Not Started | P0 |
+| Build Workflow 1: Emergency Alert (Slack + email) | -- | Not Started | P0 |
+| Build Workflow 2: Clinic Summary Delivery (email + Google Sheets) | -- | Not Started | P0 |
+| Build Workflow 3: Appointment Confirmation (email) | -- | Not Started | P1 |
+| Build Workflow 4: Intake Analytics Logger (Google Sheets) | -- | Not Started | P1 |
+| Build Workflow 5: Follow-Up Reminder (email -- stretch) | -- | Not Started | P2 |
+| Test full end-to-end: intake → agents → n8n → actions | -- | Not Started | P0 |
+| Document n8n setup in DEPLOYMENT_GUIDE.md | -- | Not Started | P1 |
+
+### n8n Deployment Options
+
+| Option | Cost | Setup Time | Best For |
+|--------|------|-----------|----------|
+| **n8n Cloud (free tier)** | $0/mo (300 executions) | 5 minutes | Quick demo, no Docker needed |
+| **Self-hosted (Docker)** | $0 | 15 minutes | Full control, runs alongside petcare-agent |
+| **Self-hosted (docker-compose)** | $0 | 15 minutes | One-command setup for both services |
+
+### Deliverables
+- [ ] n8n running (cloud or self-hosted)
+- [ ] At least 2 workflows functional (Emergency Alert + Clinic Summary)
+- [ ] Webhook integration from PetCare backend
+- [ ] Google Sheet with intake session log (for evaluation data)
+- [ ] Docker-compose for one-command multi-container startup
+
+---
+
+## Phase 5: Evaluation & Testing (Week 7)
 
 **Goal:** Evaluate against success metrics using the synthetic test set.
 
@@ -141,16 +199,18 @@ This project plan outlines the development of the PetCare Triage & Smart Booking
 | Document strong example + failure case | -- | Not Started | P0 |
 | Measure latency per intake session | -- | Not Started | P1 |
 | Receptionist time-savings estimation | -- | Not Started | P1 |
+| Pull n8n analytics data from Google Sheets for evaluation | -- | Not Started | P1 |
 
 ### Deliverables
 - [ ] Evaluation results table
 - [ ] At least 1 strong example documented
 - [ ] At least 1 failure case documented with learnings
 - [ ] Metrics summary for report
+- [ ] n8n session log data for evaluation
 
 ---
 
-## Phase 5: Report, Video & Polish (Week 7)
+## Phase 6: Report, Video & Polish (Week 8)
 
 **Goal:** Complete all assignment deliverables.
 
@@ -160,12 +220,13 @@ This project plan outlines the development of the PetCare Triage & Smart Booking
 | Record POC demo video (10-15 min) | -- | Not Started | P0 |
 | Deploy to cloud (Render / Railway) | -- | Not Started | P1 |
 | Docker containerization + start scripts | -- | Not Started | P1 |
+| Demo n8n workflows in video (show email/Slack firing) | -- | Not Started | P1 |
 | Final README polish | -- | Not Started | P1 |
 | Code cleanup and documentation | -- | Not Started | P2 |
 
 ### Deliverables
 - [ ] Technical report (complete)
-- [ ] Demo video (10-15 minutes)
+- [ ] Demo video (10-15 minutes) including n8n actions demo
 - [ ] Live deployment
 - [ ] Final codebase on `PetCare` branch
 
@@ -192,6 +253,8 @@ This project plan outlines the development of the PetCare Triage & Smart Booking
 | Session-only memory (no persistent PII) | Privacy-by-design; no need for cross-session data in POC | -- |
 | Synthetic data for all testing | No real PHI needed; enables rapid iteration and shareable test sets | -- |
 | Flask backend + vanilla JS frontend | Lightweight, fast to develop, consistent with MMAI 891 project patterns | -- |
+| n8n for workflow automation (actions layer) | Open-source, self-hostable, zero-code workflow builder; handles post-intake actions (email, Slack, Sheets) without coupling to agent logic | -- |
+| docker-compose for multi-container setup | Runs petcare-agent + n8n side-by-side; one-command startup | -- |
 | Conservative triage defaults | Safety-first: when uncertain, escalate rather than under-triage | -- |
 
 ---

@@ -97,6 +97,27 @@ graph TB
         end
     end
 
+    subgraph N8N["⚡ n8n Workflow Engine (Actions Layer)"]
+        direction TB
+        N8N_CORE["Receives webhook from Flask<br/>after intake completes"]
+        W1["🚨 Emergency Alert<br/>→ Slack + Email vet"]
+        W2["📧 Clinic Summary<br/>→ Email + Google Sheets"]
+        W3["📅 Appointment Confirm<br/>→ Email owner"]
+        W4["📊 Analytics Logger<br/>→ Google Sheets"]
+        N8N_CORE --> W1
+        N8N_CORE --> W2
+        N8N_CORE --> W3
+        N8N_CORE --> W4
+    end
+
+    subgraph INTEGRATIONS["🔗 External Services"]
+        direction LR
+        SLACK["Slack"]
+        EMAIL["Gmail / SMTP"]
+        SHEETS["Google Sheets"]
+        GCAL["Google Calendar"]
+    end
+
     USER --> FRONTEND
     FRONTEND -->|"HTTP/HTTPS"| FLASK
     FLASK --> ORCH
@@ -106,6 +127,8 @@ graph TB
     FLASK --> SESSION
     EP4 -->|"Audio upload"| WHISPER
     EP5 -->|"Text input"| TTS
+    FLASK -->|"POST webhook"| N8N
+    N8N --> INTEGRATIONS
 
     style USER fill:#1e40af,color:#fff
     style DOCKER fill:#0f172a,color:#fff
@@ -115,6 +138,8 @@ graph TB
     style RULE_AGENTS fill:#16a34a,color:#fff
     style DATA fill:#0369a1,color:#fff
     style EXTERNAL fill:#92400e,color:#fff
+    style N8N fill:#ea580c,color:#fff
+    style INTEGRATIONS fill:#065f46,color:#fff
 ```
 
 ### Agent Pipeline Flow
@@ -206,7 +231,8 @@ graph LR
 | **Voice STT** | OpenAI Whisper | $0.006/min |
 | **Voice TTS** | OpenAI TTS (tts-1) | $15/1M chars |
 | **LLM Framework** | LangChain + LangChain-OpenAI | Free |
-| **Containerization** | Docker (single container) | Free |
+| **Workflow Automation** | n8n (self-hosted or cloud) | Free |
+| **Containerization** | Docker + docker-compose | Free |
 | **Hosting** | Render / Railway (free tier) | $0/mo |
 | **Languages** | 7 (EN, FR, ZH, AR, ES, HI, UR) | Free |
 | **Version Control** | Git + GitHub (`PetCare` branch) | Free |
@@ -217,9 +243,9 @@ See [TECH_STACK.md](TECH_STACK.md) for full details, runtime architecture, and a
 
 ```mermaid
 graph LR
-    DEV["🛠️ Local Dev<br/>Python + Flask<br/>Hot reload"] -->|"docker build"| DOCKER_LOCAL["🐳 Local Docker<br/>Same as prod<br/>Port 5002"]
-    DOCKER_LOCAL -->|"git push"| CLOUD["☁️ Cloud Deploy<br/>Render / Railway<br/>Auto-deploy on push"]
-    CLOUD -->|"Custom domain"| PROD["🌐 Production<br/>HTTPS · Health check<br/>Gunicorn (2 workers)"]
+    DEV["🛠️ Local Dev<br/>Python + Flask<br/>Hot reload"] -->|"docker-compose up"| DOCKER_LOCAL["🐳 Local Docker<br/>petcare-agent + n8n<br/>Ports 5002 + 5678"]
+    DOCKER_LOCAL -->|"git push"| CLOUD["☁️ Cloud Deploy<br/>Render / Railway<br/>+ n8n Cloud"]
+    CLOUD -->|"Custom domain"| PROD["🌐 Production<br/>HTTPS · Health check<br/>Gunicorn + n8n workflows"]
 
     style DEV fill:#16a34a,color:#fff
     style DOCKER_LOCAL fill:#2563eb,color:#fff
@@ -313,6 +339,7 @@ Open [http://localhost:5002](http://localhost:5002) in your browser.
 | `DEFAULT_LLM_MODEL` | No | Model name (default: `gpt-4.1-mini`) |
 | `PORT` | No | Server port (default: `5002`) |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `N8N_WEBHOOK_URL` | No | n8n webhook URL (auto-set by docker-compose) |
 
 ---
 
@@ -348,7 +375,8 @@ Open [http://localhost:5002](http://localhost:5002) in your browser.
 ├── src/                         # Original source (from main branch)
 ├── technical_report.md          # Technical report (assignment deliverable)
 ├── PROJECT_PLAN.md              # Project plan and timeline
-├── Dockerfile                   # Docker containerization
+├── Dockerfile                   # Docker containerization (petcare-agent)
+├── docker-compose.yml           # Multi-container: petcare-agent + n8n
 ├── start.sh                     # One-click start (macOS / Linux)
 ├── start.ps1                    # One-click start (Windows PowerShell)
 ├── requirements.txt             # Python dependencies

@@ -286,6 +286,79 @@ Recommended: Tier 1 for development, Tier 2 for demo, Tier 3 as stretch goal.
 
 ---
 
+## Workflow Automation Layer (n8n)
+
+n8n is the **actions layer** -- it handles everything that happens *after* the agent pipeline finishes. The agent logic stays in Python; n8n handles the downstream integrations with zero coupling.
+
+### What n8n Does
+
+```
+PetCare Agent completes intake
+        │
+        │  POST webhook (JSON payload)
+        ▼
+┌─────────────────────────────────────────────┐
+│               n8n Workflow Engine            │
+│                                             │
+│  Workflow 1: Emergency Alert                │
+│  ├─ Slack → #emergency channel              │
+│  └─ Email → on-call vet                     │
+│                                             │
+│  Workflow 2: Clinic Summary Delivery        │
+│  ├─ Email → clinic inbox (formatted HTML)   │
+│  └─ Google Sheets → append intake row       │
+│                                             │
+│  Workflow 3: Appointment Confirmation       │
+│  ├─ Email → pet owner                       │
+│  └─ Google Calendar → create event (mock)   │
+│                                             │
+│  Workflow 4: Analytics Logger               │
+│  └─ Google Sheets → session metrics         │
+│     (triage tier, confidence, latency, lang) │
+│                                             │
+│  Workflow 5: Follow-Up Reminder (stretch)   │
+│  └─ Email → pet owner (24hr delayed)        │
+└─────────────────────────────────────────────┘
+```
+
+### n8n vs Alternatives
+
+| Option | Pros | Cons | Verdict |
+|--------|------|------|---------|
+| **n8n (self-hosted)** | Free, open-source, visual workflow builder, 400+ integrations, runs in Docker | Needs a second container | **Chosen** |
+| **n8n Cloud** | Same as above + no Docker needed | 300 exec/mo free tier | Good fallback |
+| **Zapier** | Easy to use | Expensive ($20/mo+), proprietary | Too expensive for POC |
+| **Custom Python code** | No dependencies | Tightly couples agent logic to email/Slack/Sheets code | Bad separation |
+| **AWS Step Functions** | Enterprise-grade | Overkill, requires AWS account | Too complex |
+
+### How It Connects
+
+| Component | Detail |
+|-----------|--------|
+| **Trigger** | n8n Webhook node receives POST from Flask backend |
+| **Payload** | Session JSON: pet profile, triage tier, symptoms, agent outputs, language |
+| **Transport** | HTTP (localhost in Docker network, HTTPS in cloud) |
+| **Backend change** | Add ~10 lines: `requests.post(N8N_WEBHOOK_URL, json=session_data)` after orchestrator completes |
+| **n8n runs** | As a separate Docker container (via docker-compose) or n8n Cloud |
+
+### Deployment
+
+| Option | Setup | Cost |
+|--------|-------|------|
+| **docker-compose (recommended)** | `docker-compose up` runs petcare + n8n together | Free |
+| **n8n Cloud** | Sign up → paste webhook URL into `.env` | Free (300 exec/mo) |
+
+### n8n Credentials Needed (for workflows)
+
+| Service | What to Set Up | Free Tier |
+|---------|---------------|-----------|
+| Gmail / SMTP | Email sending (clinic summary, confirmations) | Free |
+| Slack | Incoming webhook for emergency alerts | Free |
+| Google Sheets | API key for intake logging | Free |
+| Google Calendar | API key for appointment events (mock) | Free |
+
+---
+
 ## Data Layer
 
 | Component | Technology | Where It Runs | Purpose |
