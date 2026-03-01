@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <!--
   PetCare Triage & Smart Booking Agent -- Frontend
   Author: Syed Ali Turab
   Date:   March 1, 2026
+
+  Supports: English, French, Chinese (Mandarin), Arabic, Spanish, Hindi, Urdu
+  Arabic and Urdu switch the entire layout to RTL automatically.
 -->
 <head>
     <meta charset="UTF-8">
@@ -13,11 +16,23 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Header with title and voice tier indicator -->
+        <!-- Header with title, subtitle, and language selector -->
         <header class="app-header">
             <div class="header-content">
-                <h1>🐾 PetCare Triage Assistant</h1>
-                <p class="subtitle">AI-powered veterinary symptom intake & smart booking</p>
+                <div class="header-top-row">
+                    <h1 id="app-title">🐾 PetCare Triage Assistant</h1>
+                    <!-- Language selector: flags + native names for instant recognition -->
+                    <select id="lang-select" onchange="changeLanguage(this.value)" title="Select language">
+                        <option value="en" selected>🇬🇧 English</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="zh">🇨🇳 中文</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="hi">🇮🇳 हिन्दी</option>
+                        <option value="ur">🇵🇰 اردو</option>
+                    </select>
+                </div>
+                <p id="app-subtitle" class="subtitle">AI-powered veterinary symptom intake & smart booking</p>
             </div>
         </header>
 
@@ -58,7 +73,7 @@
                         title="Speaker on (click to mute)"
                     >🔊</button>
                 </div>
-                <p class="disclaimer">
+                <p id="disclaimer" class="disclaimer">
                     This tool provides triage support only — not medical diagnoses.
                     Always consult a veterinarian for your pet's health concerns.
                 </p>

@@ -206,9 +206,70 @@ The build is **deterministic**: same code + same requirements.txt = same image e
 
 ---
 
+## Multilingual Support
+
+The system supports **7 languages** out of the box. The user selects their language from a dropdown in the header, and the entire experience -- UI, chat, voice input, and voice output -- switches to that language.
+
+### Supported Languages
+
+| Language | Code | Script | Direction | Whisper | Web Speech API | GPT-4.1 | TTS |
+|----------|------|--------|-----------|---------|---------------|---------|-----|
+| **English** | `en` | Latin | LTR | Yes | Yes | Yes | Yes |
+| **French** | `fr` | Latin | LTR | Yes | Yes | Yes | Yes |
+| **Chinese (Mandarin)** | `zh` | Han | LTR | Yes | Yes (Chrome) | Yes | Yes |
+| **Arabic** | `ar` | Arabic | **RTL** | Yes | Partial | Yes | Yes |
+| **Spanish** | `es` | Latin | LTR | Yes | Yes | Yes | Yes |
+| **Hindi** | `hi` | Devanagari | LTR | Yes | Yes (Chrome) | Yes | Yes |
+| **Urdu** | `ur` | Nastaliq | **RTL** | Yes | Limited | Yes | Yes |
+
+### How It Works End-to-End
+
+```
+1. User selects language from dropdown (e.g., "🇫🇷 Français")
+2. Frontend:
+   ├── Switches all UI strings (title, placeholder, buttons, disclaimer)
+   ├── Applies RTL layout if Arabic or Urdu
+   ├── Sets Web Speech API language code (e.g., "fr-FR")
+   └── Sends language code with every API call
+3. Backend:
+   ├── Stores language in session (can change mid-conversation)
+   ├── Returns welcome message in the selected language
+   ├── Passes language hint to Whisper for better STT accuracy
+   └── LLM prompt includes: "Respond in {language_name}"
+4. Voice:
+   ├── Whisper: auto-detects language + uses hint for accuracy
+   ├── OpenAI TTS: auto-detects language from input text
+   └── Browser TTS: uses BCP-47 language tag (e.g., "fr-FR")
+5. Clinic Summary: always generated in English (staff-facing)
+```
+
+### RTL (Right-to-Left) Support
+
+Arabic and Urdu trigger a full RTL layout transformation:
+
+- `<html dir="rtl">` is set dynamically via JavaScript
+- Message bubbles flip (user on left, assistant on right)
+- Input area, buttons, and text alignment all reverse
+- Arabic Naskh and Urdu Nastaliq fonts are loaded
+- The language selector stays in the header (reversed position)
+
+### Cost Impact
+
+Zero additional cost for multilingual support:
+
+| Component | Multilingual Cost | Notes |
+|-----------|------------------|-------|
+| UI translations | Free | Hardcoded in `app.js` |
+| GPT-4.1 responses | Same token cost | Multilingual is native |
+| Whisper STT | Same per-minute cost | All languages supported |
+| OpenAI TTS | Same per-character cost | Auto-detects language |
+| Browser voice | Free | Language via BCP-47 tag |
+
+---
+
 ## Voice Layer
 
-Three tiers of voice interaction (see [previous section unchanged]):
+Three tiers of voice interaction:
 
 | Feature | Tier 1: Browser Native | Tier 2: Whisper + TTS | Tier 3: Realtime API |
 |---------|----------------------|----------------------|---------------------|

@@ -7,12 +7,14 @@ Date:   March 1, 2026
 Flask-based API server that serves the frontend and handles
 intake requests through the orchestrator agent pipeline.
 
-This server provides:
-  - Static file serving for the frontend chat UI
-  - REST API endpoints for session management and message handling
-  - A /api/voice/transcribe endpoint for Whisper-based speech-to-text
-  - A /api/voice/synthesize endpoint for OpenAI TTS text-to-speech
-  - In-memory session storage (suitable for POC; swap to Redis/DB for prod)
+Multilingual Support:
+  English (en), French (fr), Chinese (zh), Arabic (ar),
+  Spanish (es), Hindi (hi), Urdu (ur)
+
+  The language is passed from the frontend on session start
+  and with each message. The LLM is prompted to respond in
+  the chosen language. Whisper auto-detects the spoken language
+  but the hint improves accuracy.
 
 Endpoints:
   GET  /                              → Serve the chat UI (index.html)
@@ -39,19 +41,14 @@ from dotenv import load_dotenv
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Load environment variables from .env file (API keys, port, log level, etc.)
 load_dotenv()
 
-# Create Flask app, serving the frontend folder as static files.
-# The static_url_path='' means files in ../frontend are served at the root.
 app = Flask(__name__, static_folder='../frontend', static_url_path='')
 
 # ---------------------------------------------------------------------------
 # Logging Setup
 # ---------------------------------------------------------------------------
 
-# Configure logging to both console (StreamHandler) and a log file.
-# Log level is configurable via the LOG_LEVEL env var (default: INFO).
 logging.basicConfig(
     level=getattr(logging, os.getenv('LOG_LEVEL', 'INFO')),
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -65,15 +62,86 @@ logging.basicConfig(
 logger = logging.getLogger('petcare_api')
 
 # ---------------------------------------------------------------------------
+# Supported Languages
+# ---------------------------------------------------------------------------
+
+SUPPORTED_LANGUAGES = {
+    'en': {
+        'name': 'English',
+        'whisper_code': 'en',
+        'welcome': (
+            "Hello! I'm the PetCare Triage Assistant. I'll help you assess "
+            "your pet's symptoms and find the right care.\n\n"
+            "Let's start — what type of pet do you have (dog, cat, or other)?"
+        )
+    },
+    'fr': {
+        'name': 'Français',
+        'whisper_code': 'fr',
+        'welcome': (
+            "Bonjour ! Je suis l'Assistant de Triage PetCare. Je vais vous aider "
+            "à évaluer les symptômes de votre animal et trouver les soins adaptés.\n\n"
+            "Commençons — quel type d'animal avez-vous (chien, chat, ou autre) ?"
+        )
+    },
+    'zh': {
+        'name': '中文',
+        'whisper_code': 'zh',
+        'welcome': (
+            "您好！我是PetCare分诊助手。我将帮助您评估宠物的症状并找到合适的护理。\n\n"
+            "让我们开始吧——您养的是什么宠物（狗、猫还是其他）？"
+        )
+    },
+    'ar': {
+        'name': 'العربية',
+        'whisper_code': 'ar',
+        'welcome': (
+            "مرحبًا! أنا مساعد فرز رعاية الحيوانات الأليفة. سأساعدك في تقييم "
+            "أعراض حيوانك الأليف وإيجاد الرعاية المناسبة.\n\n"
+            "لنبدأ — ما نوع حيوانك الأليف (كلب، قطة، أو غير ذلك)؟"
+        )
+    },
+    'es': {
+        'name': 'Español',
+        'whisper_code': 'es',
+        'welcome': (
+            "¡Hola! Soy el Asistente de Triaje PetCare. Le ayudaré a evaluar "
+            "los síntomas de su mascota y encontrar la atención adecuada.\n\n"
+            "Comencemos — ¿qué tipo de mascota tiene (perro, gato u otro)?"
+        )
+    },
+    'hi': {
+        'name': 'हिन्दी',
+        'whisper_code': 'hi',
+        'welcome': (
+            "नमस्ते! मैं पेटकेयर ट्राइएज सहायक हूँ। मैं आपके पालतू जानवर के "
+            "लक्षणों का मूल्यांकन करने और सही देखभाल खोजने में मदद करूँगा।\n\n"
+            "चलिए शुरू करते हैं — आपका पालतू जानवर किस प्रकार का है (कुत्ता, बिल्ली, या अन्य)?"
+        )
+    },
+    'ur': {
+        'name': 'اردو',
+        'whisper_code': 'ur',
+        'welcome': (
+            "السلام علیکم! میں پیٹ کیئر ٹرائیج اسسٹنٹ ہوں۔ میں آپ کے پالتو جانور "
+            "کی علامات کا جائزہ لینے اور صحیح دیکھ بھال تلاش کرنے میں مدد کروں گا۔\n\n"
+            "آئیے شروع کرتے ہیں — آپ کا پالتو جانور کس قسم کا ہے (کتا، بلی، یا کوئی اور)؟"
+        )
+    }
+}
+
+# ---------------------------------------------------------------------------
 # In-Memory Session Store
 # ---------------------------------------------------------------------------
 
-# Active intake sessions keyed by session_id (UUID string).
-# Each session holds: pet_profile, symptoms, conversation messages,
-# agent outputs, and current workflow state.
-# NOTE: This is in-memory only -- sessions are lost on server restart.
-# For production, replace with Redis, SQLite, or a database.
 sessions = {}
+
+
+def get_language(lang_code):
+    """Return language config, defaulting to English for unsupported codes."""
+    if lang_code and lang_code in SUPPORTED_LANGUAGES:
+        return lang_code
+    return 'en'
 
 
 # ===========================================================================
@@ -94,14 +162,15 @@ def serve_index():
 def health():
     """
     Health check endpoint.
-    Returns server status, current timestamp, and version.
-    Useful for monitoring and deployment verification.
+    Returns server status, current timestamp, version, voice status,
+    and the list of supported languages.
     """
     return jsonify({
         'status': 'ok',
         'timestamp': datetime.utcnow().isoformat(),
         'version': '1.0.0',
-        'voice_enabled': bool(os.getenv('OPENAI_API_KEY'))
+        'voice_enabled': bool(os.getenv('OPENAI_API_KEY')),
+        'supported_languages': list(SUPPORTED_LANGUAGES.keys())
     })
 
 
@@ -114,38 +183,40 @@ def start_session():
     """
     Start a new intake session.
 
-    Creates a unique session ID and initializes the session state with
-    empty pet_profile, symptoms, messages, and agent_outputs.
+    Accepts an optional 'language' field in the JSON body.
+    Returns a welcome message in the requested language.
+
+    Request Body (optional):
+        { "language": "fr" }
 
     Returns:
-        JSON with session_id, welcome message, and initial state.
+        JSON with session_id, welcome message in chosen language, and state.
     """
+    data = request.json or {}
+    lang_code = get_language(data.get('language', 'en'))
     session_id = str(uuid.uuid4())
 
-    # Initialize the session data structure.
-    # 'state' tracks where we are in the intake flow:
-    #   'intake' → 'safety_check' → 'triage' → 'routing' → 'complete'
     sessions[session_id] = {
         'id': session_id,
         'created_at': datetime.utcnow().isoformat(),
-        'state': 'intake',           # Current workflow state
-        'pet_profile': {},            # Species, breed, age, weight, name
-        'symptoms': {},               # Chief complaint + symptom details
-        'messages': [],               # Full conversation history
-        'agent_outputs': {},          # Outputs from each sub-agent
-        'clarification_count': 0      # How many times we looped for clarity
+        'language': lang_code,
+        'state': 'intake',
+        'pet_profile': {},
+        'symptoms': {},
+        'messages': [],
+        'agent_outputs': {},
+        'clarification_count': 0
     }
 
-    logger.info(f"Session started: {session_id}")
+    lang_config = SUPPORTED_LANGUAGES[lang_code]
+
+    logger.info(f"Session started: {session_id} | Language: {lang_config['name']}")
 
     return jsonify({
         'session_id': session_id,
-        'message': (
-            "Hello! I'm the PetCare Triage Assistant. I'll help you assess "
-            "your pet's symptoms and find the right care.\n\n"
-            "Let's start — what type of pet do you have (dog, cat, or other)?"
-        ),
-        'state': 'intake'
+        'message': lang_config['welcome'],
+        'state': 'intake',
+        'language': lang_code
     })
 
 
@@ -154,22 +225,22 @@ def handle_message(session_id):
     """
     Handle an incoming message from the pet owner.
 
-    Accepts a JSON body with a 'message' field containing the owner's text.
-    The message may come from typed text or from voice transcription.
-    Passes the message through the orchestrator pipeline and returns
-    the agent's response.
+    Accepts a JSON body with 'message' and optional 'language' fields.
+    The language can change mid-session (if the user switches in the UI).
 
     Args:
         session_id: UUID string identifying the active session.
 
     Request Body:
-        { "message": "My dog has been vomiting since yesterday" }
+        {
+            "message": "Mon chien vomit depuis hier",
+            "language": "fr",
+            "source": "text"
+        }
 
     Returns:
-        JSON with the agent's response message, current state, and session_id.
-        If session not found, returns 404.
+        JSON with the agent's response in the session's language.
     """
-    # Validate session exists
     if session_id not in sessions:
         return jsonify({'error': 'Session not found'}), 404
 
@@ -177,48 +248,51 @@ def handle_message(session_id):
     user_message = data.get('message', '')
     session = sessions[session_id]
 
-    # Record the user's message in the conversation history
+    # Allow language to be changed mid-session
+    new_lang = data.get('language')
+    if new_lang and new_lang in SUPPORTED_LANGUAGES:
+        session['language'] = new_lang
+
+    lang_code = session['language']
+
     session['messages'].append({
         'role': 'user',
         'content': user_message,
         'timestamp': datetime.utcnow().isoformat(),
-        'source': data.get('source', 'text')  # 'text' or 'voice'
+        'source': data.get('source', 'text'),
+        'language': lang_code
     })
 
     # -----------------------------------------------------------------------
     # TODO: Wire up the Orchestrator pipeline here
     #
-    # The orchestrator coordinates the 7-sub-agent pipeline:
-    #   1. Intake Agent (A)      → parse message, update pet profile + symptoms
-    #   2. Safety Gate (B)       → check for red flags → escalate if needed
-    #   3. Confidence Gate (C)   → validate completeness → loop if needed
-    #   4. Triage Agent (D)      → classify urgency tier
-    #   5. Routing Agent (E)     → map to appointment type
-    #   6. Scheduling Agent (F)  → propose available slots
-    #   7. Guidance/Summary (G)  → generate owner guidance + clinic summary
+    # When calling the LLM, include the language instruction:
+    #   system_prompt += f"\nRespond in {SUPPORTED_LANGUAGES[lang_code]['name']}."
     #
-    # Example integration:
-    #   from orchestrator import Orchestrator
-    #   orch = Orchestrator(session)
-    #   response = orch.process(user_message)
+    # The orchestrator should pass session['language'] to each sub-agent
+    # so that LLM-powered agents (Intake, Triage, Guidance) respond in
+    # the correct language, while rule-based agents remain language-agnostic.
     # -----------------------------------------------------------------------
 
-    # Placeholder response until the orchestrator is wired up
+    lang_name = SUPPORTED_LANGUAGES[lang_code]['name']
+
     response = {
         'message': (
             f"[POC STUB] Received: '{user_message}'. "
+            f"Language: {lang_name}. "
             "The orchestrator pipeline is not yet implemented. "
             "This is a placeholder response."
         ),
         'state': session['state'],
-        'session_id': session_id
+        'session_id': session_id,
+        'language': lang_code
     }
 
-    # Record the assistant's response in the conversation history
     session['messages'].append({
         'role': 'assistant',
         'content': response['message'],
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': datetime.utcnow().isoformat(),
+        'language': lang_code
     })
 
     return jsonify(response)
@@ -229,15 +303,9 @@ def get_summary(session_id):
     """
     Retrieve the clinic-facing summary for a session.
 
-    Returns the structured intake data including pet profile, symptom details,
-    agent outputs (triage tier, routing, scheduling), and full conversation log.
-    This is the data that would be sent to the veterinary clinic's system.
-
-    Args:
-        session_id: UUID string identifying the session.
-
-    Returns:
-        JSON with full session data. 404 if session not found.
+    The summary is always in English (clinic-facing) regardless
+    of the session language. The owner-facing guidance is in the
+    session's language.
     """
     if session_id not in sessions:
         return jsonify({'error': 'Session not found'}), 404
@@ -246,6 +314,7 @@ def get_summary(session_id):
     return jsonify({
         'session_id': session_id,
         'state': session['state'],
+        'language': session.get('language', 'en'),
         'pet_profile': session.get('pet_profile', {}),
         'agent_outputs': session.get('agent_outputs', {}),
         'messages': session.get('messages', [])
@@ -261,19 +330,14 @@ def transcribe_audio():
     """
     Transcribe audio to text using OpenAI Whisper API (Tier 2 voice).
 
-    Accepts an audio file upload (WAV, MP3, WebM, etc.) and returns
-    the transcribed text. This endpoint is called by the frontend when
-    the user records a voice message and Tier 2 (Whisper) is selected.
-
-    The transcribed text can then be sent to /api/session/<id>/message
-    just like a typed message.
+    Accepts a language hint to improve transcription accuracy.
+    Whisper supports all 7 languages natively.
 
     Request:
-        multipart/form-data with 'audio' file field
+        multipart/form-data with 'audio' file field and optional 'language'
 
     Returns:
-        JSON with 'text' (transcribed string) and 'duration' (seconds).
-        Returns 503 if OPENAI_API_KEY is not configured.
+        JSON with 'text' (transcribed string) and 'language'.
     """
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
@@ -285,35 +349,36 @@ def transcribe_audio():
         return jsonify({'error': 'No audio file provided'}), 400
 
     audio_file = request.files['audio']
+    lang_code = get_language(request.form.get('language', 'en'))
+    whisper_lang = SUPPORTED_LANGUAGES[lang_code]['whisper_code']
 
     try:
-        # Import OpenAI client for Whisper transcription
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
 
-        # Save the uploaded audio to a temporary file.
-        # Whisper API requires a file object with a filename.
         with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
             audio_file.save(tmp.name)
             tmp_path = tmp.name
 
-        # Call OpenAI Whisper API for transcription.
-        # Model: whisper-1 | Cost: $0.006/minute
         with open(tmp_path, 'rb') as f:
             transcript = client.audio.transcriptions.create(
                 model='whisper-1',
                 file=f,
+                language=whisper_lang,
                 response_format='text'
             )
 
-        # Clean up the temp file
         os.unlink(tmp_path)
 
-        logger.info(f"Voice transcribed: {len(transcript)} chars")
+        logger.info(
+            f"Voice transcribed: {len(transcript)} chars | "
+            f"Language: {SUPPORTED_LANGUAGES[lang_code]['name']}"
+        )
 
         return jsonify({
             'text': transcript.strip(),
-            'source': 'whisper'
+            'source': 'whisper',
+            'language': lang_code
         })
 
     except Exception as e:
@@ -326,21 +391,15 @@ def synthesize_speech():
     """
     Convert text to speech using OpenAI TTS API (Tier 2 voice).
 
-    Accepts a JSON body with 'text' and optional 'voice' fields.
-    Returns an MP3 audio file that the frontend can play.
-
-    This endpoint is called by the frontend to speak the agent's response
-    aloud when Tier 2 (OpenAI TTS) is selected.
+    OpenAI TTS handles multilingual text natively -- it detects
+    the language from the input text and synthesizes accordingly.
+    No language parameter is needed for TTS.
 
     Request Body:
-        { "text": "Your pet should be seen today.", "voice": "nova" }
-
-    Available voices: alloy, ash, ballad, coral, echo, fable, nova,
-                      onyx, sage, shimmer, cedar, marin
+        { "text": "Votre animal devrait être vu aujourd'hui.", "voice": "nova" }
 
     Returns:
         Audio file (MP3) streamed to the client.
-        Returns 503 if OPENAI_API_KEY is not configured.
     """
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
@@ -350,7 +409,7 @@ def synthesize_speech():
 
     data = request.json
     text = data.get('text', '')
-    voice = data.get('voice', 'nova')  # 'nova' is warm and friendly
+    voice = data.get('voice', 'nova')
 
     if not text:
         return jsonify({'error': 'No text provided'}), 400
@@ -359,16 +418,12 @@ def synthesize_speech():
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
 
-        # Call OpenAI TTS API.
-        # Model: tts-1 ($15/1M chars) or tts-1-hd ($30/1M chars)
-        # Response is streamed as MP3 audio.
         response = client.audio.speech.create(
             model='tts-1',
             voice=voice,
             input=text
         )
 
-        # Stream the audio bytes back to the client as an MP3 file
         audio_bytes = io.BytesIO(response.content)
         logger.info(f"TTS generated: {len(text)} chars, voice={voice}")
 
@@ -389,7 +444,6 @@ def synthesize_speech():
 # ===========================================================================
 
 if __name__ == '__main__':
-    # Ensure the logs directory exists before starting
     os.makedirs(os.path.join(os.path.dirname(__file__), 'logs'), exist_ok=True)
 
     port = int(os.getenv('PORT', 5002))
@@ -397,5 +451,9 @@ if __name__ == '__main__':
 
     logger.info(f"Starting PetCare API server on port {port}")
     logger.info(f"Voice enabled: {bool(os.getenv('OPENAI_API_KEY'))}")
+    logger.info(
+        f"Supported languages: "
+        f"{', '.join(f'{v['name']} ({k})' for k, v in SUPPORTED_LANGUAGES.items())}"
+    )
 
     app.run(host='0.0.0.0', port=port, debug=debug)

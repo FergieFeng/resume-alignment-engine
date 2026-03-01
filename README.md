@@ -172,6 +172,30 @@ The PetCare Agent uses a **7-sub-agent architecture** coordinated by a central *
 
 ---
 
+## Multilingual Support
+
+The system supports **7 languages** with full UI translation, RTL support, and multilingual voice:
+
+| Language | Flag | Direction | Voice (STT/TTS) |
+|----------|------|-----------|-----------------|
+| English | 🇬🇧 | LTR | Full |
+| French | 🇫🇷 | LTR | Full |
+| Chinese (Mandarin) | 🇨🇳 | LTR | Full |
+| Arabic | 🇸🇦 | RTL | Full |
+| Spanish | 🇪🇸 | LTR | Full |
+| Hindi | 🇮🇳 | LTR | Full |
+| Urdu | 🇵🇰 | RTL | Full |
+
+- Select language from the dropdown in the header
+- The entire UI (buttons, placeholder, disclaimer) switches instantly
+- Arabic and Urdu automatically flip the layout to right-to-left (RTL)
+- Voice input and output work in all 7 languages
+- Clinic-facing summaries are always generated in English
+- Language can be changed mid-conversation
+- Set language via URL parameter: `?lang=fr`
+
+---
+
 ## Voice Support
 
 The system supports **three tiers** of voice interaction for hands-free intake (ideal for pet owners holding a distressed pet):
