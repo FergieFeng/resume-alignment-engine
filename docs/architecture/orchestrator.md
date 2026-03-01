@@ -109,3 +109,7 @@ Without an Orchestrator, the system would be a collection of disconnected agents
 - The Orchestrator does not perform triage or routing analysis itself.
 - It does not provide diagnoses or medical advice.
 - Its role is to **coordinate, enforce safety, manage state, and assemble output**.
+
+## Implementation: Custom Orchestrator (No Framework for POC)
+
+The Orchestrator is implemented as a **custom Python module** (`backend/orchestrator.py`), not using an agent framework such as LangGraph or Google ADK. This choice keeps the POC simple and debuggable and aligns with the assignment’s emphasis on "simplicity and robustness." The same workflow could be formalized later in **LangGraph** (explicit graph, checkpointing) without changing agent logic; **Google ADK** is not recommended (Vertex AI–centric). See PROJECT_PLAN.md Key Decisions and technical_report.md §3.3.

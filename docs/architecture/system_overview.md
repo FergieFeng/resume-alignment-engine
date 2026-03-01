@@ -84,7 +84,7 @@ Sub-Agent C: Confidence Gate → Required fields missing OR confidence too low
 |-----------|-----------|-------|
 | **Backend Server** | Python 3.10+ / Flask | Serves API + static frontend |
 | **LLM Provider** | OpenAI GPT-4.1 / Anthropic Claude | Configurable via `.env` |
-| **Agent Framework** | Custom Orchestrator | Potential migration to Google ADK / LangGraph |
+| **Agent Framework** | Custom Python Orchestrator | POC: no LangGraph/ADK; keeps flow simple and debuggable. Post-POC: LangGraph optional for formal graph; Google ADK not recommended. |
 | **Frontend** | Vanilla HTML / CSS / JavaScript | Chat-based intake UI |
 | **Data Contracts** | JSON schemas | Structured I/O between all agents |
 | **Containerization** | Docker | Single-container deployment |

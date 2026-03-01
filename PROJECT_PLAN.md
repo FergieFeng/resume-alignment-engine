@@ -250,6 +250,7 @@ The backend sends a JSON payload to an n8n webhook at key events. n8n handles ev
 | Decision | Rationale | Date |
 |----------|-----------|------|
 | 7-sub-agent + orchestrator architecture | Matches canvas design; enables modular testing and clear safety boundaries | -- |
+| Custom orchestrator (no framework for POC) | Simplicity and robustness; assignment values "fewest steps." LangGraph optional post-POC for explicit graph; Google ADK not used (Vertex-centric, off our stack). | -- |
 | Session-only memory (no persistent PII) | Privacy-by-design; no need for cross-session data in POC | -- |
 | Synthetic data for all testing | No real PHI needed; enables rapid iteration and shareable test sets | -- |
 | Flask backend + vanilla JS frontend | Lightweight, fast to develop, consistent with MMAI 891 project patterns | -- |

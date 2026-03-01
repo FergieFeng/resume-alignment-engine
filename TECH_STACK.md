@@ -127,7 +127,7 @@ For a POC, a monolithic architecture is the right choice:
 | Harder to debug | Easy to debug (single process) |
 | Production-ready scaling | POC-appropriate scaling |
 
-**If this moves beyond POC**, the agents are already modular Python classes with standardized I/O contracts. Migrating to microservices or a framework like Google ADK / LangGraph would require wrapping each class in an API endpoint -- the agent logic itself wouldn't change.
+**If this moves beyond POC**, the agents are already modular Python classes with standardized I/O contracts. **We do not use an agent framework (Google ADK or LangGraph) for the POC** — the custom Python orchestrator is sufficient, simpler to debug, and matches the assignment’s emphasis on simplicity. For production, orchestration could be formalized in **LangGraph** (same flow, explicit graph, checkpointing); **Google ADK is not recommended** (Vertex AI–centric, off our stack). Migrating to microservices would mean wrapping each agent in an API; agent logic would not change.
 
 ---
 
@@ -446,6 +446,6 @@ See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for step-by-step instructions.
 | SMS/Email Notifications | Twilio / SendGrid | Low | Appointment confirmations |
 | Persistent Sessions | Redis / PostgreSQL | Low | Sessions survive restarts |
 | Production Server | Gunicorn + Nginx | Low | Multi-worker, production-grade |
-| Agent Framework | Google ADK / LangGraph | Medium | Formal agent orchestration |
+| Formal orchestration | LangGraph (optional) | Medium | Explicit graph, checkpointing; same flow as current orchestrator. **Not Google ADK** (Vertex-centric). |
 | Mobile App | React Native / Flutter | High | Native mobile experience |
 | Analytics | PostHog / Mixpanel | Low | Usage + triage accuracy tracking |
