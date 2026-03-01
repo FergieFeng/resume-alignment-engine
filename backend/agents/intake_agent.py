@@ -1,6 +1,9 @@
 """
 Sub-Agent A: Intake Agent
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Collects pet profile, chief complaint, and symptom details through
 adaptive, multi-turn follow-up questions tailored to species and symptom area.
 """

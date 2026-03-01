@@ -1,5 +1,7 @@
 # Agents
 
+**Author:** Syed Ali Turab | **Date:** March 1, 2026
+
 ## Agent Model
 
 Agents are specialized sub-components that receive structured input, perform a focused task, and return structured output with evidence and confidence. The Orchestrator coordinates execution order, manages branching, and merges results.

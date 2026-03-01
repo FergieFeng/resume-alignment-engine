@@ -1,6 +1,9 @@
 """
 Sub-Agent E: Routing Agent
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Maps symptom category to appointment type and provider pool
 using the clinic's routing rules.
 """

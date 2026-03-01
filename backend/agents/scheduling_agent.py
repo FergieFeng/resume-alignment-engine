@@ -1,6 +1,9 @@
 """
 Sub-Agent F: Scheduling Agent
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Proposes available appointment slots based on urgency tier,
 appointment type, and provider pool. Uses mock schedule data for POC.
 """

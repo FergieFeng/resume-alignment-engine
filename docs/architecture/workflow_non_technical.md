@@ -1,5 +1,7 @@
 # Non-Technical Workflow
 
+**Author:** Syed Ali Turab | **Date:** March 1, 2026
+
 This version explains the PetCare Triage & Smart Booking Agent workflow for non-technical readers.
 
 For the technical version (flowchart + JSON contracts), see `docs/architecture/workflow_technical.md`.

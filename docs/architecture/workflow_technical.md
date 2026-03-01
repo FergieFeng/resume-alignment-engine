@@ -1,5 +1,7 @@
 # Technical Workflow (Flowchart + I/O Contracts + Examples)
 
+**Author:** Syed Ali Turab | **Date:** March 1, 2026
+
 This is the technical workflow reference for engineers.
 
 For the non-technical version, see `docs/architecture/workflow_non_technical.md`.
@@ -78,22 +80,27 @@ For the non-technical version, see `docs/architecture/workflow_non_technical.md`
 
 ## 3) Workflow Flowchart
 
+### Visual Architecture Diagram
+
+![PetCare Triage Workflow](../images/architecture_workflow.png)
+
+### Mermaid Diagram (Interactive)
+
 ```mermaid
 flowchart TD
-    A[Owner Input\nPet symptoms via chat] --> B[Intake Agent\nCollect pet profile + symptoms]
-    B --> C[Safety Gate\nRed-flag detection]
-    C --> D{Red Flag?}
-    D -->|Yes| E[EMERGENCY ESCALATION\nImmediate messaging + stop booking]
-    D -->|No| F[Confidence Gate\nValidate fields + confidence]
-    F --> G{Confidence OK?}
-    G -->|Low| H[Ask Clarifying Questions\nor Route to Receptionist]
-    H --> B
-    G -->|OK| I[Triage Agent\nAssign urgency tier]
-    I --> J[Routing Agent\nMap to appointment type]
-    J --> K[Scheduling Agent\nPropose available slots]
-    K --> L[Guidance & Summary Agent\nOwner guidance + clinic summary]
-    L --> M[Orchestrator\nAssemble final response]
-    M --> N[Owner Response +\nClinic-Facing Summary]
+    A[Trigger\nOwner starts intake\nweb / chat / phone] --> B[Sub-Agent A: Intake\nCollect pet profile + chief complaint\n+ timeline + key symptoms]
+    B --> B2[Sub-Agent A cont.\nAsk adaptive follow-ups by symptom area\nGI / resp / skin / injury / behavior]
+    B2 --> C{Sub-Agent B: Safety Gate\nRed-flag symptoms present?}
+    C -->|Yes| E[Emergency Escalation B\nAdvise urgent care now + notify clinic\nStop booking flow]
+    E --> G2[Document & close]
+    C -->|No| F{Sub-Agent C: Confidence Gate\nRequired fields complete\nAND confidence high enough?}
+    F -->|No| H[Clarify / Human Review C\nAsk targeted questions OR mark\nNeeds receptionist review]
+    H -->|Loop: gather\nmissing info| B2
+    F -->|Yes| I[Sub-Agent D: Triage\nAssign urgency tier:\nEmergency / Same-day / Soon / Routine]
+    I --> J[Sub-Agent E: Routing\nCategory → appointment type\n/ provider pool]
+    J --> K[Sub-Agent F: Scheduling\nPropose slots OR\ncreate booking request]
+    K --> L[Sub-Agent G: Guidance + Summary\nOwner: next steps + safe do/don't while waiting + escalation cues\nClinic: structured intake summary JSON/form + triage + routing + confidence]
+    G2 --> L
 ```
 
 ---

@@ -1,5 +1,7 @@
 # Orchestrator Agent
 
+**Author:** Syed Ali Turab | **Date:** March 1, 2026
+
 This document describes the role and responsibilities of the **Orchestrator Agent** in the PetCare Triage & Smart Booking Agent system.
 
 The Orchestrator is the **control and decision layer** of the system. It coordinates sub-agent execution, manages session state, enforces safety rules, and produces the final combined response.

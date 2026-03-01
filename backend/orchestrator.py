@@ -1,6 +1,9 @@
 """
 PetCare Triage & Smart Booking Agent -- Orchestrator
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Coordinates the 7 sub-agent pipeline:
   A. Intake → B. Safety Gate → C. Confidence Gate →
   D. Triage → E. Routing → F. Scheduling → G. Guidance & Summary

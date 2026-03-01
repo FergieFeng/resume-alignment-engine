@@ -1,5 +1,8 @@
 # PetCare Triage & Smart Booking Agent -- Project Plan
 
+**Author:** Syed Ali Turab
+**Date:** March 1, 2026
+
 ## Overview
 
 This project plan outlines the development of the PetCare Triage & Smart Booking Agent, a multi-agent POC for the MMAI 2026 Capstone. The system automates pet symptom intake, triage urgency classification, appointment routing, and provides safe owner guidance through an orchestrator-coordinated sub-agent architecture.

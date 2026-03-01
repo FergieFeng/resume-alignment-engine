@@ -1,5 +1,10 @@
 # PetCare Triage & Smart Booking Agent -- Technical Report
 
+**Author:** Syed Ali Turab
+**Date:** March 1, 2026
+
+---
+
 ## Executive Summary
 
 The PetCare Triage & Smart Booking Agent is a multi-agent proof-of-concept designed to reduce veterinary clinic front-desk workload and improve clinical routing accuracy. The system automates the pet symptom intake process through an AI-powered conversational interface, classifies urgency into four tiers (Emergency / Same-day / Soon / Routine), routes cases to the appropriate appointment type and provider pool, and generates both owner-facing guidance and a structured clinic-ready intake summary.
@@ -121,12 +126,31 @@ Owner Input (symptoms, pet info)
 
 ### 2.4 Technology Stack
 
-- **Backend:** Python (Flask)
-- **Frontend:** HTML/CSS/JavaScript
-- **LLM Provider:** OpenAI GPT-4.1 / Anthropic Claude (configurable)
-- **Agent Framework:** Custom orchestrator (potential migration to Google ADK / LangGraph)
-- **Data Contracts:** JSON schemas
-- **Deployment:** Docker + Render/Railway
+| Component | Technology | Notes |
+|-----------|-----------|-------|
+| **Backend** | Python 3.10+ / Flask | Serves API + static frontend |
+| **Frontend** | Vanilla HTML / CSS / JavaScript | Chat-based intake UI |
+| **LLM Provider** | OpenAI GPT-4.1 / Anthropic Claude | Configurable via `.env` |
+| **Agent Framework** | Custom Orchestrator | Potential migration to Google ADK / LangGraph |
+| **Data Contracts** | JSON schemas | Structured I/O between all agents |
+| **Containerization** | Docker | Single-container deployment |
+| **Deployment** | Render / Railway | Free-tier cloud hosting |
+| **Tracing** | LangSmith (optional) | LLM call observability |
+
+### 2.5 Data Sources
+
+| Source | What It Provides | Agent(s) |
+|--------|-----------------|----------|
+| [HuggingFace pet-health-symptoms-dataset](https://huggingface.co/datasets/karenwky/pet-health-symptoms-dataset) | 2,000 labeled symptom samples across 5 conditions (skin irritations, digestive issues, parasites, ear infections, mobility problems) | Intake (A), Triage (D) |
+| [ASPCA AnTox Database](https://www.aspcapro.org/antox) | Toxin ingestion red flags from 1M+ documented poisoning cases | Safety Gate (B) |
+| [ASPCA Top Toxins 2024](https://www.aspcapro.org/resource/top-10-toxins-2024) | Prioritized toxin categories (OTC meds 16.5%, food/drink 16.1%, chocolate 13.6%) | Safety Gate (B) |
+| [Vet-AI Symptom Checker](https://www.vet-ai.com/symptomchecker) | 165 vet-written triage algorithms, 4M+ questions processed across 850K+ sessions | Triage (D), Routing (E) |
+| [SAVSNET / PetBERT](https://github.com/SAVSNET/PetBERT) | Veterinary NLP model trained on 500M+ words from 5.1M UK vet records | Reference for NLP patterns |
+| `backend/data/clinic_rules.json` | Synthetic clinic triage rules, routing maps, 4 providers, species notes | Triage (D), Routing (E) |
+| `backend/data/red_flags.json` | 50+ curated emergency triggers from ASPCA + vet emergency guidelines | Safety Gate (B) |
+| `backend/data/available_slots.json` | Mock clinic schedule (weekday 9-5, 30-min slots, 4 providers) | Scheduling (F) |
+
+**Data strategy:** All POC data is synthetic or publicly available. No real patient/pet health information (PHI) is used. Future integration would connect to clinic scheduling APIs and EMR systems.
 
 ---
 

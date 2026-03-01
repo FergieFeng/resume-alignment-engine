@@ -1,6 +1,9 @@
 """
 Sub-Agent G: Guidance & Summary Agent
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Generates safe, non-diagnostic owner guidance ("do/don't while waiting")
 and produces a structured clinic-ready intake summary.
 """

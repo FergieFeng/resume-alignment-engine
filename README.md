@@ -1,6 +1,7 @@
 # PetCare Triage & Smart Booking Agent
 
-**Created by:** Fergie Feng
+**Author:** Syed Ali Turab
+**Date:** March 1, 2026
 
 An AI-powered veterinary triage and smart booking agent that automates pet symptom intake, urgency classification, appointment routing, and provides safe owner guidance -- built as part of the MMAI 2026 Capstone at Queen's University.
 
@@ -17,6 +18,14 @@ The app is deployed and accessible online:
 - **Password:** Reach out to the MMAI Capstone team
 
 > First load after inactivity may take ~30-60 seconds (free tier cold start). After that it's instant.
+
+---
+
+## Architecture Diagram
+
+![PetCare Triage Workflow](docs/images/architecture_workflow.png)
+
+The diagram above shows the full sub-agent workflow: Trigger → Intake (A) → Safety Gate (B) → Confidence Gate (C) → Triage (D) → Routing (E) → Scheduling (F) → Guidance & Summary (G), with branching for emergency escalation and clarification loops.
 
 ---
 
@@ -47,9 +56,26 @@ Open [http://localhost:5002](http://localhost:5002) in your browser.
 
 > After someone pushes changes, just run the same script again -- it pulls and rebuilds automatically. Keys are saved locally and never need to be re-entered.
 
+### What the Start Script Does
+
+1. Checks if `.env` exists; if not, prompts for `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`
+2. Pulls latest code from the `PetCare` branch
+3. Builds the Docker image (`petcare-agent`)
+4. Starts the container, mapping port `5002` and mounting `.env`
+5. Opens http://localhost:5002
+
+### Docker Manual Build
+
+```bash
+docker build -t petcare-agent .
+docker run -p 5002:5002 --env-file .env petcare-agent
+```
+
 ---
 
 ## Quick Start (Local Python)
+
+Requires Python 3.10+ and pip.
 
 ```bash
 git clone https://github.com/FergieFeng/resume-alignment-engine.git
@@ -66,7 +92,7 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your API keys (at minimum: OPENAI_API_KEY)
 
 # Start the server
 cd backend
@@ -74,6 +100,17 @@ python api_server.py
 ```
 
 Open [http://localhost:5002](http://localhost:5002) in your browser.
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes (if using OpenAI) | OpenAI API key for GPT-4.1 |
+| `ANTHROPIC_API_KEY` | Yes (if using Anthropic) | Anthropic API key for Claude |
+| `DEFAULT_LLM_PROVIDER` | No | `openai` (default) or `anthropic` |
+| `DEFAULT_LLM_MODEL` | No | Model name (default: `gpt-4.1-mini`) |
+| `PORT` | No | Server port (default: `5002`) |
+| `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
 ---
 
@@ -109,6 +146,9 @@ Open [http://localhost:5002](http://localhost:5002) in your browser.
 ├── src/                         # Original source (from main branch)
 ├── technical_report.md          # Technical report (assignment deliverable)
 ├── PROJECT_PLAN.md              # Project plan and timeline
+├── Dockerfile                   # Docker containerization
+├── start.sh                     # One-click start (macOS / Linux)
+├── start.ps1                    # One-click start (Windows PowerShell)
 ├── requirements.txt             # Python dependencies
 ├── .env.example                 # Environment variable template
 └── .gitignore
@@ -183,6 +223,42 @@ See [docs/architecture/output_schema.md](docs/architecture/output_schema.md) for
 | Intake completeness (required fields captured) | ≥ 90% |
 | Receptionist intake time reduction | 30%+ |
 | Re-booking / mis-booking reduction | 20%+ |
+
+---
+
+## Data Sources
+
+The PetCare agent draws triage knowledge, symptom data, and red-flag rules from the following sources:
+
+### Symptom & Triage Knowledge
+
+| Source | Type | Usage |
+|--------|------|-------|
+| [Hugging Face: pet-health-symptoms-dataset](https://huggingface.co/datasets/karenwky/pet-health-symptoms-dataset) | Open dataset (2,000 labeled samples) | Symptom classification training/validation -- covers skin irritations, digestive issues, parasites, ear infections, mobility problems |
+| [Vet-AI Symptom Checker](https://www.vet-ai.com/symptomchecker) | Reference | Triage logic patterns -- 165 algorithms built by veterinarians, 4M+ questions processed |
+| [SAVSNET / PetBERT](https://github.com/SAVSNET/PetBERT) | NLP model (500M+ words from 5.1M UK vet records) | Reference for veterinary NLP and disease coding patterns |
+
+### Safety & Toxicology
+
+| Source | Type | Usage |
+|--------|------|-------|
+| [ASPCA Animal Poison Control (AnTox)](https://www.aspcapro.org/antox) | Reference database (1M+ cases) | Red-flag rules for toxin ingestion -- top toxins, species-specific risks |
+| [ASPCA Top Toxins 2024](https://www.aspcapro.org/resource/top-10-toxins-2024) | Published list | Prioritized toxin list for Safety Gate agent (OTC meds 16.5%, food/drink 16.1%, chocolate 13.6%, etc.) |
+| Veterinary emergency textbooks | Clinical reference | Emergency red-flag definitions (GDV, urinary blockage, dyspnea, seizure, etc.) |
+
+### Clinic Operations (Synthetic / Mock)
+
+| Source | Type | Usage |
+|--------|------|-------|
+| `backend/data/clinic_rules.json` | Synthetic config | Triage rules, routing maps, provider specialties, species notes |
+| `backend/data/red_flags.json` | Curated list (50+ entries) | Emergency red-flag triggers compiled from ASPCA + veterinary emergency guidelines |
+| `backend/data/available_slots.json` | Mock data | Simulated clinic schedule for appointment booking POC |
+
+### Data Strategy
+
+- **POC phase:** All data is synthetic or publicly available. No real patient/pet health information (PHI) is used.
+- **Future integration:** Clinic scheduling APIs, EMR/CRM systems, real-time appointment availability.
+- **Privacy:** Session-only memory. No persistent storage of owner PII. Anonymized logs for evaluation only.
 
 ---
 

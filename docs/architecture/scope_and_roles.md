@@ -1,5 +1,7 @@
 # Scope and Roles
 
+**Author:** Syed Ali Turab | **Date:** March 1, 2026
+
 This document defines the **collaboration model** for the PetCare Triage & Smart Booking Agent.
 It is designed for **team-based development**, where each team member can own one or more sub-agents.
 

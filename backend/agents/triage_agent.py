@@ -1,6 +1,9 @@
 """
 Sub-Agent D: Triage Agent
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Classifies urgency into four tiers (Emergency / Same-day / Soon / Routine)
 based on validated symptom data, with evidence-based rationale and confidence.
 """

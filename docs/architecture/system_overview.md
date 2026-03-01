@@ -1,5 +1,9 @@
 # System Overview
 
+**Author:** Syed Ali Turab | **Date:** March 1, 2026
+
+---
+
 ## Purpose
 
 The PetCare Triage & Smart Booking Agent automates veterinary clinic intake by collecting pet symptoms, detecting emergencies, classifying urgency, routing to the correct appointment type, and producing structured handoff summaries for the clinical team -- all while providing safe, non-diagnostic guidance to pet owners.
@@ -30,6 +34,74 @@ The PetCare Triage & Smart Booking Agent automates veterinary clinic intake by c
 
 8. **Orchestration Layer**
    - Coordinates execution order, manages session state, resolves conflicts, enforces safety rules.
+
+## Architecture Diagram
+
+![PetCare Triage Workflow](../images/architecture_workflow.png)
+
+## Detailed Workflow (Step 2 -- Sub-Agent Design)
+
+The architecture diagram above illustrates the full branching workflow:
+
+### Happy Path (No Red Flags, High Confidence)
+
+```
+Trigger (owner starts intake)
+  → Sub-Agent A: Intake (collect pet profile + chief complaint + timeline + key symptoms)
+  → Sub-Agent A (cont.): Ask adaptive follow-ups by symptom area (GI / resp / skin / injury / behavior)
+  → Sub-Agent B: Safety Gate (red-flag symptoms present?)
+       → No red flags
+  → Sub-Agent C: Confidence Gate (required fields complete AND confidence high enough?)
+       → Yes, confidence OK
+  → Sub-Agent D: Triage (assign urgency tier: Emergency / Same-day / Soon / Routine)
+  → Sub-Agent E: Routing (category → appointment type / provider pool)
+  → Sub-Agent F: Scheduling (propose slots OR create booking request)
+  → Sub-Agent G: Guidance + Summary (owner do/don't + clinic-facing structured summary)
+```
+
+### Emergency Path (Red Flags Detected)
+
+```
+Sub-Agent B: Safety Gate → Red-flag symptoms detected
+  → Emergency Escalation (B): Advise urgent care now + notify clinic, stop booking flow
+  → Document & close
+  → Sub-Agent G: Guidance + Summary (emergency-specific guidance + clinic alert)
+```
+
+### Clarification Loop (Low Confidence)
+
+```
+Sub-Agent C: Confidence Gate → Required fields missing OR confidence too low
+  → Clarify / Human Review (C): Ask targeted questions OR mark "needs receptionist review"
+  → Loop back to Sub-Agent A: Intake (gather missing info)
+  → Re-enter flow at Sub-Agent B: Safety Gate
+  (max 2 clarification loops before routing to human)
+```
+
+## Technology Stack
+
+| Component | Technology | Notes |
+|-----------|-----------|-------|
+| **Backend Server** | Python 3.10+ / Flask | Serves API + static frontend |
+| **LLM Provider** | OpenAI GPT-4.1 / Anthropic Claude | Configurable via `.env` |
+| **Agent Framework** | Custom Orchestrator | Potential migration to Google ADK / LangGraph |
+| **Frontend** | Vanilla HTML / CSS / JavaScript | Chat-based intake UI |
+| **Data Contracts** | JSON schemas | Structured I/O between all agents |
+| **Containerization** | Docker | Single-container deployment |
+| **Deployment** | Render / Railway | Free-tier cloud hosting |
+| **Tracing (optional)** | LangSmith | LLM call observability |
+
+## Data Sources
+
+| Source | What It Provides | Agent(s) Using It |
+|--------|-----------------|------------------|
+| [HuggingFace pet-health-symptoms-dataset](https://huggingface.co/datasets/karenwky/pet-health-symptoms-dataset) | 2,000 labeled symptom samples (5 conditions) | Intake (A), Triage (D) |
+| [ASPCA AnTox / Top Toxins](https://www.aspcapro.org/antox) | Toxin ingestion red flags (1M+ documented cases) | Safety Gate (B) |
+| [Vet-AI Symptom Checker](https://www.vet-ai.com/symptomchecker) | Triage algorithm patterns (165 algorithms, 4M+ questions) | Triage (D), Routing (E) |
+| [SAVSNET / PetBERT](https://github.com/SAVSNET/PetBERT) | Veterinary NLP reference (500M+ words, 5.1M records) | Intake (A) |
+| `backend/data/clinic_rules.json` | Clinic triage rules, routing maps, provider list | Triage (D), Routing (E) |
+| `backend/data/red_flags.json` | 50+ curated emergency triggers | Safety Gate (B) |
+| `backend/data/available_slots.json` | Mock clinic schedule | Scheduling (F) |
 
 ## Design Characteristics
 

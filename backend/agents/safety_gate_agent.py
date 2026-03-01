@@ -1,6 +1,9 @@
 """
 Sub-Agent B: Safety Gate Agent
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Detects emergency red flags in collected symptom data and triggers
 immediate escalation messaging for life-threatening conditions.
 """

@@ -1,6 +1,9 @@
 """
 Sub-Agent C: Confidence Gate Agent
 
+Author: Syed Ali Turab
+Date:   March 1, 2026
+
 Validates required intake fields, assesses overall data confidence,
 detects conflicting signals, and determines the next action.
 """
