@@ -103,6 +103,23 @@ Sub-Agent C: Confidence Gate → Required fields missing OR confidence too low
 | `backend/data/red_flags.json` | 50+ curated emergency triggers | Safety Gate (B) |
 | `backend/data/available_slots.json` | Mock clinic schedule | Scheduling (F) |
 
+## Voice Interaction Layer
+
+The system supports three tiers of voice interaction, enabling hands-free intake (ideal for pet owners holding a distressed pet):
+
+| Tier | Technology | Cost | Latency | Best For |
+|------|-----------|------|---------|----------|
+| **Tier 1** | Browser Web Speech API | Free | ~100ms | Quick POC demo, Chrome/Edge users |
+| **Tier 2** | OpenAI Whisper (STT) + TTS | ~$0.02/session | ~1-2s | Consistent quality across all browsers |
+| **Tier 3** | OpenAI Realtime API (WebSocket) | ~$0.50-1.00/session | <500ms | Natural voice conversation (stretch goal) |
+
+**Architecture:**
+- Tiers 1 & 2 are "voice-to-text + text-to-voice" wrappers around the existing text pipeline — no changes to the agent pipeline
+- Tier 3 uses a persistent WebSocket connection for speech-to-speech with sub-500ms latency
+- Voice endpoints: `/api/voice/transcribe` (Whisper STT) and `/api/voice/synthesize` (OpenAI TTS)
+
+See [TECH_STACK.md](../../TECH_STACK.md) for full voice tier comparison and implementation details.
+
 ## Design Characteristics
 
 - **Safety-first:** red-flag detection runs before any routing or scheduling.
@@ -110,6 +127,7 @@ Sub-Agent C: Confidence Gate → Required fields missing OR confidence too low
 - **Auditable:** every triage decision maps to symptom evidence.
 - **Schema-driven:** outputs follow strict validation for clinic integration.
 - **Provider-agnostic:** orchestration can call different LLM providers.
+- **Voice-ready:** multi-tier voice support for hands-free intake.
 
 ## Non-Goals (POC Phase)
 

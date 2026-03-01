@@ -172,10 +172,28 @@ The PetCare Agent uses a **7-sub-agent architecture** coordinated by a central *
 
 ---
 
+## Voice Support
+
+The system supports **three tiers** of voice interaction for hands-free intake (ideal for pet owners holding a distressed pet):
+
+| Tier | Technology | Cost | How It Works |
+|------|-----------|------|-------------|
+| **Tier 1** | Browser Web Speech API | Free | Browser captures speech → text → normal pipeline → browser TTS |
+| **Tier 2** | OpenAI Whisper + TTS | ~$0.02/session | Audio sent to Whisper API → text → pipeline → OpenAI TTS audio |
+| **Tier 3** | OpenAI Realtime API | ~$0.50/session | WebSocket speech-to-speech, sub-500ms latency (stretch goal) |
+
+- Voice is **opt-in**: click the mic button or use the keyboard
+- TTS responses can be toggled on/off with the speaker button
+- Tier is auto-detected based on browser support and server config
+- See [TECH_STACK.md](TECH_STACK.md) for full comparison
+
+---
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
+| [TECH_STACK.md](TECH_STACK.md) | Full technology stack (AI, voice, data, infra) |
 | [docs/architecture/system_overview.md](docs/architecture/system_overview.md) | Overall architecture and design rationale |
 | [docs/architecture/workflow_technical.md](docs/architecture/workflow_technical.md) | Technical workflow with flowchart, I/O contracts, and examples |
 | [docs/architecture/workflow_non_technical.md](docs/architecture/workflow_non_technical.md) | Non-technical workflow overview for general readers |

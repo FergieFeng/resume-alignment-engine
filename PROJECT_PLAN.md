@@ -104,6 +104,30 @@ This project plan outlines the development of the PetCare Triage & Smart Booking
 
 ---
 
+## Phase 3.5: Voice Integration (Week 5-6)
+
+**Goal:** Add voice input/output for hands-free intake.
+
+### Sprint: Voice Tiers
+
+| Task | Owner | Status | Priority |
+|------|-------|--------|----------|
+| Implement Tier 1: Browser Web Speech API (STT + TTS) | -- | Not Started | P0 |
+| Add mic button + TTS toggle to frontend | -- | Not Started | P0 |
+| Implement Tier 2: OpenAI Whisper transcription endpoint | -- | Not Started | P1 |
+| Implement Tier 2: OpenAI TTS synthesis endpoint | -- | Not Started | P1 |
+| Test voice input across browsers (Chrome, Safari, Edge) | -- | Not Started | P1 |
+| Evaluate Tier 3: OpenAI Realtime API feasibility | -- | Not Started | P2 |
+| Prototype Tier 3: WebSocket real-time voice (stretch goal) | -- | Not Started | P2 |
+
+### Deliverables
+- [ ] Voice input working (Tier 1 at minimum)
+- [ ] TTS response playback
+- [ ] Voice works alongside text input (user can switch)
+- [ ] Tier 2 endpoints functional (if OPENAI_API_KEY configured)
+
+---
+
 ## Phase 4: Evaluation & Testing (Week 6)
 
 **Goal:** Evaluate against success metrics using the synthetic test set.
