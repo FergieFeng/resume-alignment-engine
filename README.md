@@ -193,7 +193,8 @@ The system supports **three tiers** of voice interaction for hands-free intake (
 
 | Document | Description |
 |----------|-------------|
-| [TECH_STACK.md](TECH_STACK.md) | Full technology stack (AI, voice, data, infra) |
+| [TECH_STACK.md](TECH_STACK.md) | Full technology stack, runtime architecture, how agents are deployed |
+| [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) | Step-by-step deployment (local Python, Docker, Render, Railway) |
 | [docs/architecture/system_overview.md](docs/architecture/system_overview.md) | Overall architecture and design rationale |
 | [docs/architecture/workflow_technical.md](docs/architecture/workflow_technical.md) | Technical workflow with flowchart, I/O contracts, and examples |
 | [docs/architecture/workflow_non_technical.md](docs/architecture/workflow_non_technical.md) | Non-technical workflow overview for general readers |

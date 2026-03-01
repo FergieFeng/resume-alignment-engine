@@ -5,85 +5,210 @@
 
 ---
 
+## What This Is Built On
+
+The PetCare Agent is a **monolithic Python/Flask application** that bundles the frontend, backend API, orchestrator, and all 7 sub-agents into a **single deployable unit**. It runs inside a **single Docker container** (or directly via Python) and communicates with external LLM APIs (OpenAI / Anthropic) for AI reasoning.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Docker Container                           │
+│                    (petcare-agent:latest)                        │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                  Flask API Server                        │   │
+│  │                 (backend/api_server.py)                   │   │
+│  │                    Port 5002                              │   │
+│  │                                                          │   │
+│  │  ┌─────────────┐  ┌──────────────────────────────────┐   │   │
+│  │  │  Frontend    │  │  REST API Endpoints              │   │   │
+│  │  │  (Static)    │  │                                  │   │   │
+│  │  │             │  │  POST /api/session/start          │   │   │
+│  │  │  index.html  │  │  POST /api/session/<id>/message  │   │   │
+│  │  │  js/app.js   │  │  GET  /api/session/<id>/summary  │   │   │
+│  │  │  styles/     │  │  POST /api/voice/transcribe      │   │   │
+│  │  │  main.css    │  │  POST /api/voice/synthesize      │   │   │
+│  │  └─────────────┘  └──────────────────────────────────┘   │   │
+│  │                                                          │   │
+│  │  ┌──────────────────────────────────────────────────┐    │   │
+│  │  │              Orchestrator                        │    │   │
+│  │  │         (backend/orchestrator.py)                │    │   │
+│  │  │                                                  │    │   │
+│  │  │  Coordinates the 7-agent pipeline:               │    │   │
+│  │  │                                                  │    │   │
+│  │  │  ┌─────────┐ ┌─────────┐ ┌──────────────┐       │    │   │
+│  │  │  │ Agent A │→│ Agent B │→│   Agent C    │       │    │   │
+│  │  │  │ Intake  │ │ Safety  │ │ Confidence   │       │    │   │
+│  │  │  └─────────┘ │  Gate   │ │    Gate      │       │    │   │
+│  │  │              └─────────┘ └──────┬───────┘       │    │   │
+│  │  │                                 │               │    │   │
+│  │  │  ┌─────────┐ ┌─────────┐ ┌─────┴───────┐       │    │   │
+│  │  │  │ Agent F │←│ Agent E │←│   Agent D   │       │    │   │
+│  │  │  │Schedule │ │ Routing │ │   Triage    │       │    │   │
+│  │  │  └────┬────┘ └─────────┘ └─────────────┘       │    │   │
+│  │  │       │                                         │    │   │
+│  │  │  ┌────┴────────────┐                            │    │   │
+│  │  │  │    Agent G      │                            │    │   │
+│  │  │  │ Guidance+Summary│                            │    │   │
+│  │  │  └─────────────────┘                            │    │   │
+│  │  └──────────────────────────────────────────────────┘    │   │
+│  │                                                          │   │
+│  │  ┌────────────────────────────┐                          │   │
+│  │  │  Data Layer (JSON files)   │                          │   │
+│  │  │  clinic_rules.json         │                          │   │
+│  │  │  red_flags.json            │                          │   │
+│  │  │  available_slots.json      │                          │   │
+│  │  └────────────────────────────┘                          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       │ HTTPS API Calls
+                       ▼
+        ┌──────────────────────────────┐
+        │    External LLM APIs         │
+        │                              │
+        │  OpenAI API                  │
+        │  ├─ GPT-4.1 / GPT-4.1-mini  │
+        │  ├─ Whisper (STT)            │
+        │  ├─ TTS (text-to-speech)     │
+        │  └─ Realtime API (Tier 3)    │
+        │                              │
+        │  Anthropic API               │
+        │  └─ Claude 3.5+             │
+        └──────────────────────────────┘
+```
+
+---
+
+## How the Agents Are Deployed
+
+All 7 sub-agents run **in-process** within the same Python Flask server. They are **not** separate microservices or separate containers. This is deliberate for the POC:
+
+| Aspect | How It Works |
+|--------|-------------|
+| **Runtime** | Each agent is a Python class instantiated by the Orchestrator at request time |
+| **Execution** | Agents run sequentially within a single HTTP request/response cycle |
+| **Communication** | Agents pass data via Python dicts in memory (no network calls between agents) |
+| **LLM Calls** | Only agents that need AI reasoning (Intake, Triage, Guidance) call external APIs |
+| **Rule-Based Agents** | Safety Gate, Confidence Gate, Routing, Scheduling run locally with zero API cost |
+| **State** | Session state is held in-memory (Python dict); shared across agents via Orchestrator |
+| **Scaling** | Single process handles all requests; sufficient for POC traffic |
+
+### Agent Execution Flow Per Request
+
+```
+1. HTTP Request arrives at Flask server
+2. Flask routes to handle_message()
+3. Orchestrator is instantiated with the session
+4. Orchestrator.process(message) runs:
+   ├── IntakeAgent.process()          ← LLM call (OpenAI/Anthropic)
+   ├── SafetyGateAgent.process()      ← Local rule-based (no API call)
+   ├── ConfidenceGateAgent.process()  ← Local rule-based (no API call)
+   ├── TriageAgent.process()          ← LLM call (OpenAI/Anthropic)
+   ├── RoutingAgent.process()         ← Local rule-based (no API call)
+   ├── SchedulingAgent.process()      ← Local rule-based (no API call)
+   └── GuidanceSummaryAgent.process() ← LLM call (OpenAI/Anthropic)
+5. Orchestrator assembles response
+6. Flask returns JSON response
+```
+
+**LLM calls per intake session:** ~3-5 API calls (Intake, Triage, Guidance). Safety Gate, Confidence Gate, Routing, and Scheduling are all rule-based and run locally with zero latency and zero cost.
+
+### Why Not Microservices?
+
+For a POC, a monolithic architecture is the right choice:
+
+| Microservices | Monolith (our approach) |
+|--------------|------------------------|
+| Each agent = separate container | All agents in one container |
+| Inter-agent network calls | In-process function calls |
+| Complex orchestration (message queues, service mesh) | Simple Python method calls |
+| Higher infra cost (7+ containers) | Single container ($0/mo on free tier) |
+| Harder to debug | Easy to debug (single process) |
+| Production-ready scaling | POC-appropriate scaling |
+
+**If this moves beyond POC**, the agents are already modular Python classes with standardized I/O contracts. Migrating to microservices or a framework like Google ADK / LangGraph would require wrapping each class in an API endpoint -- the agent logic itself wouldn't change.
+
+---
+
+## Docker Container Architecture
+
+### What the Container Includes
+
+```
+petcare-agent:latest
+├── Base: python:3.11-slim (Debian Bookworm, ~150MB)
+├── Python packages: flask, openai, anthropic, langchain, pydantic (~200MB)
+├── Application code: backend/ + frontend/ + docs/ + data/ (~2MB)
+├── Total image size: ~350-400MB
+└── Exposed port: 5002
+```
+
+### Container Runtime Behavior
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| **Base image** | `python:3.11-slim` | Small footprint, production-ready Python |
+| **Port** | 5002 | Matches the Flask server default |
+| **Environment** | `APP_ENV=production` | Disables Flask debug mode |
+| **Secrets** | Injected via `--env-file .env` | API keys never baked into the image |
+| **Persistence** | None (stateless) | Sessions live in-memory; lost on restart |
+| **Health check** | `GET /api/health` | Returns `{"status": "ok"}` |
+| **Startup time** | ~3-5 seconds | Flask + import time |
+| **Memory** | ~100-200MB at idle | Increases with concurrent sessions |
+
+### Docker Build Process
+
+```dockerfile
+FROM python:3.11-slim                    # 1. Start from slim Python image
+COPY requirements.txt .                  # 2. Copy dependency list
+RUN pip install --no-cache-dir -r ...    # 3. Install Python packages
+COPY . .                                 # 4. Copy application code
+EXPOSE 5002                              # 5. Declare the port
+CMD ["python", "backend/api_server.py"]  # 6. Start Flask server
+```
+
+The build is **deterministic**: same code + same requirements.txt = same image every time. No compiled assets or build steps needed (frontend is vanilla HTML/CSS/JS).
+
+---
+
 ## Core Stack
 
 | Layer | Technology | Version | Purpose |
 |-------|-----------|---------|---------|
-| **Backend** | Python | 3.10+ | Primary language for all server-side logic |
-| **Web Framework** | Flask | latest | REST API server, serves static frontend, session management |
-| **Frontend** | HTML5 / CSS3 / JavaScript (ES6+) | -- | Chat-based intake UI, voice controls |
-| **Containerization** | Docker | latest | Single-container deployment, reproducible builds |
+| **Language** | Python | 3.10+ (3.11 in Docker) | All server-side logic, agent implementations |
+| **Web Framework** | Flask | latest | REST API, static file serving, session management |
+| **Frontend** | HTML5 / CSS3 / JavaScript (ES6+) | -- | Chat UI, voice controls, responsive design |
+| **Containerization** | Docker | latest | Reproducible builds, single-container deployment |
+| **Process Model** | Single-process, single-threaded | -- | Flask dev server (use Gunicorn for production) |
 
 ---
 
 ## AI / LLM Layer
 
-| Component | Technology | Pricing | Purpose |
+| Component | Technology | Pricing | Used By |
 |-----------|-----------|---------|---------|
-| **Primary LLM** | OpenAI GPT-4.1 / GPT-4.1-mini | $2-10/1M tokens | Intake parsing, triage classification, guidance generation |
-| **Alternative LLM** | Anthropic Claude 3.5+ | $3-15/1M tokens | Configurable fallback; strong at safety-critical reasoning |
-| **LLM Framework** | LangChain + LangChain-OpenAI | -- | Agent prompting, structured output, model abstraction |
-| **Observability** | LangSmith (optional) | Free tier available | LLM call tracing, latency monitoring, prompt debugging |
+| **Primary LLM** | OpenAI GPT-4.1-mini | ~$0.40/1M input, $1.60/1M output | Intake (A), Triage (D), Guidance (G) |
+| **Upgrade LLM** | OpenAI GPT-4.1 | ~$2/1M input, $8/1M output | Complex triage cases |
+| **Alternative** | Anthropic Claude 3.5 Sonnet | ~$3/1M input, $15/1M output | Fallback; strong safety reasoning |
+| **Framework** | LangChain + LangChain-OpenAI | -- | Prompt templating, structured output |
+| **Tracing** | LangSmith (optional) | Free tier | LLM call tracing, prompt debugging |
+
+### Cost Per Intake Session (Estimated)
+
+| Component | Tokens | Cost |
+|-----------|--------|------|
+| Intake Agent (1-3 LLM calls) | ~2,000 tokens | ~$0.004 |
+| Triage Agent (1 LLM call) | ~1,000 tokens | ~$0.002 |
+| Guidance Agent (1 LLM call) | ~1,500 tokens | ~$0.003 |
+| Voice Tier 2 (if used) | 1 min audio | ~$0.02 |
+| **Total per session** | | **~$0.01-0.03** |
 
 ---
 
 ## Voice Layer
 
-The system supports three tiers of voice interaction, each building on the previous:
-
-### Tier 1: Browser-Native Voice (Free -- No API Cost)
-
-| Component | Technology | Cost | Notes |
-|-----------|-----------|------|-------|
-| **Speech-to-Text** | Web Speech API (`SpeechRecognition`) | Free | Browser-native; Chrome/Edge full support, Safari partial |
-| **Text-to-Speech** | Web Speech API (`SpeechSynthesis`) | Free | Broad browser support (Chrome 33+, Firefox 49+, Safari 7+) |
-
-**How it works:**
-- User clicks mic button → browser captures speech → transcribed to text client-side
-- Text is sent to the backend through the normal `/api/session/<id>/message` endpoint
-- Backend response text is spoken aloud via browser TTS
-- Zero additional cost, zero server load for voice processing
-- Limitation: recognition quality varies by browser/OS; no custom voice
-
-### Tier 2: OpenAI Whisper + TTS (Higher Quality)
-
-| Component | Technology | Cost | Notes |
-|-----------|-----------|------|-------|
-| **Speech-to-Text** | OpenAI Whisper API | $0.006/min (~$0.36/hr) | Highly accurate, multilingual, handles noisy audio |
-| **Text-to-Speech** | OpenAI TTS (tts-1) | $15/1M chars | 13 voices, streaming, multiple formats (MP3, WAV, Opus) |
-| **Text-to-Speech HD** | OpenAI TTS (tts-1-hd) | $30/1M chars | Higher quality synthesis |
-
-**How it works:**
-- User clicks mic → browser records audio → sent to backend as audio blob
-- Backend forwards to Whisper API → returns transcribed text
-- Text processed through normal agent pipeline
-- Response text sent to OpenAI TTS → audio streamed back to browser
-- Better quality than browser-native; consistent across all browsers/devices
-
-### Tier 3: OpenAI Realtime API (Interactive Voice Conversation)
-
-| Component | Technology | Cost | Notes |
-|-----------|-----------|------|-------|
-| **Real-time Voice** | OpenAI Realtime API | ~$0.15-0.20/min | Sub-500ms latency, speech-to-speech, WebSocket |
-| **Audio Input** | gpt-realtime model | $32/1M audio input tokens | Bidirectional audio streaming |
-| **Audio Output** | gpt-realtime model | $64/1M audio output tokens | Natural interruption handling |
-
-**How it works:**
-- WebSocket connection established between browser and OpenAI Realtime API
-- Bidirectional audio streaming -- user speaks, agent responds in voice in real-time
-- Sub-500ms latency (vs 1.7-3.5s for traditional STT→LLM→TTS pipeline)
-- Native interruption handling (user can cut in mid-response)
-- Function calling mid-conversation (can trigger triage pipeline)
-- 10 available voices including Cedar and Marin (optimized for natural speech)
-- No session limits (removed Feb 2025)
-
-**Why this is compelling for PetCare:**
-- Pet owners are often stressed, holding their pet, hands not free to type
-- Voice is the natural intake modality (mirrors calling a clinic)
-- Sub-500ms response feels like talking to a real receptionist
-- Strong differentiator for the demo
-
-### Voice Tier Comparison
+Three tiers of voice interaction (see [previous section unchanged]):
 
 | Feature | Tier 1: Browser Native | Tier 2: Whisper + TTS | Tier 3: Realtime API |
 |---------|----------------------|----------------------|---------------------|
@@ -91,37 +216,33 @@ The system supports three tiers of voice interaction, each building on the previ
 | **Latency** | ~100ms (client-side) | ~1-2s (API round-trip) | <500ms (WebSocket) |
 | **Quality** | Varies by browser | High (Whisper) | Highest (native) |
 | **Interruption** | Manual (click to stop) | Manual | Native (natural) |
-| **Browser Support** | Chrome/Edge best | All browsers | All browsers |
-| **Conversation Feel** | Walkie-talkie | Walkie-talkie | Natural phone call |
+| **Browser** | Chrome/Edge best | All browsers | All browsers |
+| **Feel** | Walkie-talkie | Walkie-talkie | Natural phone call |
 | **Implementation** | ~2 hours | ~4 hours | ~8 hours |
-| **API Key Required** | No | Yes (OpenAI) | Yes (OpenAI) |
+| **API Key** | No | Yes (OpenAI) | Yes (OpenAI) |
 
-### Recommended Approach for POC
-
-1. **Implement Tier 1 first** (browser-native) -- free, fast to build, good enough for demo
-2. **Add Tier 2 as upgrade** (Whisper + TTS) -- better quality, ~$0.02/session cost
-3. **Tier 3 as stretch goal** (Realtime API) -- impressive for demo but higher cost + complexity
+Recommended: Tier 1 for development, Tier 2 for demo, Tier 3 as stretch goal.
 
 ---
 
 ## Data Layer
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Session Storage** | In-memory (Python dict) | Active intake sessions (no persistence needed for POC) |
-| **Clinic Rules** | JSON config files | Triage rules, routing maps, red-flag lists, provider data |
-| **Mock Schedule** | JSON file | Simulated appointment availability |
-| **Logging** | Python `logging` + file handler | API requests, agent execution, errors |
+| Component | Technology | Where It Runs | Purpose |
+|-----------|-----------|--------------|---------|
+| **Session Store** | Python `dict` (in-memory) | Inside Flask process | Active intake sessions |
+| **Clinic Rules** | `backend/data/clinic_rules.json` | Loaded at startup | Triage rules, routing maps, providers |
+| **Red Flags** | `backend/data/red_flags.json` | Loaded at startup | 50+ emergency trigger terms |
+| **Mock Schedule** | `backend/data/available_slots.json` | Loaded at startup | Simulated appointment slots |
+| **Logging** | Python `logging` → `backend/logs/` | File + console | API requests, agent trace, errors |
 
-### Data Sources (External)
+### External Data Sources
 
-| Source | URL | What It Provides |
-|--------|-----|-----------------|
-| HuggingFace Pet Health Dataset | [karenwky/pet-health-symptoms-dataset](https://huggingface.co/datasets/karenwky/pet-health-symptoms-dataset) | 2,000 labeled symptom samples (5 conditions) |
-| ASPCA AnTox Database | [aspcapro.org/antox](https://www.aspcapro.org/antox) | 1M+ poisoning cases, toxin reference |
-| ASPCA Top Toxins 2024 | [aspcapro.org/resource/top-10-toxins-2024](https://www.aspcapro.org/resource/top-10-toxins-2024) | Prioritized toxin categories |
-| Vet-AI Symptom Checker | [vet-ai.com/symptomchecker](https://www.vet-ai.com/symptomchecker) | 165 vet-written triage algorithms |
-| SAVSNET / PetBERT | [github.com/SAVSNET/PetBERT](https://github.com/SAVSNET/PetBERT) | Veterinary NLP model reference |
+| Source | URL | Used By |
+|--------|-----|---------|
+| HuggingFace Pet Health Dataset | [karenwky/pet-health-symptoms-dataset](https://huggingface.co/datasets/karenwky/pet-health-symptoms-dataset) | Intake (A), Triage (D) |
+| ASPCA AnTox | [aspcapro.org/antox](https://www.aspcapro.org/antox) | Safety Gate (B) |
+| Vet-AI Symptom Checker | [vet-ai.com/symptomchecker](https://www.vet-ai.com/symptomchecker) | Triage (D), Routing (E) |
+| SAVSNET / PetBERT | [github.com/SAVSNET/PetBERT](https://github.com/SAVSNET/PetBERT) | NLP reference |
 
 ---
 
@@ -129,26 +250,43 @@ The system supports three tiers of voice interaction, each building on the previ
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Container Runtime** | Docker | Reproducible builds, single-container deployment |
-| **Cloud Hosting** | Render / Railway | Free-tier deployment for POC |
-| **Version Control** | Git + GitHub | Source code, branching (`PetCare` branch) |
-| **Start Scripts** | `start.sh` (Bash) / `start.ps1` (PowerShell) | One-click setup (key prompts, build, run) |
+| **Container** | Docker (single container) | Bundles Python + app + frontend |
+| **Cloud** | Render / Railway (free tier) | Zero-cost POC hosting |
+| **DNS/SSL** | Provided by Render/Railway | HTTPS by default |
+| **CI/CD** | GitHub → Render auto-deploy | Push to `PetCare` branch → auto-redeploy |
+| **Version Control** | Git + GitHub | Source code on `PetCare` branch |
+| **Start Scripts** | `start.sh` / `start.ps1` | One-click local setup |
+| **Monitoring** | `/api/health` endpoint | Basic health check |
+
+### Deployment Options
+
+| Option | Cost | Difficulty | Best For |
+|--------|------|-----------|----------|
+| **Local Python** | Free | Easy | Development, debugging |
+| **Local Docker** | Free | Easy | Testing prod-like setup |
+| **Render (free)** | $0/mo | Easy | Live demo, sharing |
+| **Render (paid)** | $7/mo | Easy | No cold starts |
+| **Railway** | $5/mo | Easy | Alternative to Render |
+| **AWS/GCP/Azure** | Variable | Medium | Production deployment |
+
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for step-by-step instructions.
 
 ---
 
 ## Python Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `flask` | Web server and REST API |
-| `python-dotenv` | Environment variable management from `.env` |
-| `pydantic` | Data validation and JSON schema enforcement |
-| `openai` | OpenAI API client (GPT-4.1, Whisper, TTS, Realtime) |
-| `anthropic` | Anthropic API client (Claude) |
-| `langchain` | LLM abstraction, prompt templating, agent tooling |
-| `langchain-openai` | LangChain ↔ OpenAI integration |
-| `langchain-anthropic` | LangChain ↔ Anthropic integration |
-| `streamlit` | Optional: quick prototyping UI (from main branch) |
+| Package | Purpose | Used By |
+|---------|---------|---------|
+| `flask` | Web server, REST API, static serving | api_server.py |
+| `python-dotenv` | Load `.env` file into environment | api_server.py |
+| `pydantic` | JSON schema validation, data models | All agents |
+| `openai` | GPT-4.1, Whisper STT, TTS, Realtime API | Intake, Triage, Guidance, Voice |
+| `anthropic` | Claude API client | Configurable fallback LLM |
+| `langchain` | LLM abstraction, prompt templates | Agent prompting |
+| `langchain-openai` | LangChain ↔ OpenAI bridge | Agent prompting |
+| `langchain-anthropic` | LangChain ↔ Anthropic bridge | Agent prompting |
+| `gunicorn` | Production WSGI server | Cloud deployment |
+| `streamlit` | Quick prototyping UI (from main branch) | Optional |
 
 ---
 
@@ -156,20 +294,24 @@ The system supports three tiers of voice interaction, each building on the previ
 
 | Concern | Approach |
 |---------|----------|
-| **API Keys** | Stored in `.env` (gitignored), never committed |
-| **Owner PII** | Session-only memory; no persistent storage |
-| **Medical Safety** | Non-diagnostic language enforced; Safety Gate runs before all routing |
-| **Data Retention** | Anonymized logs only; no PHI stored |
-| **Transport** | HTTPS in production (Render/Railway default) |
+| **API Keys** | `.env` file (gitignored); injected via `--env-file` in Docker |
+| **Owner PII** | Session-only memory; no database, no persistent storage |
+| **Medical Safety** | Non-diagnostic language enforced; Safety Gate blocks before routing |
+| **Data Retention** | Anonymized logs only; no PHI stored anywhere |
+| **Transport** | HTTPS default on Render/Railway; HTTP locally |
+| **Container Security** | `python:3.11-slim` base; no root processes; minimal attack surface |
 
 ---
 
 ## Future Integrations (Post-POC)
 
-| Integration | Technology | Purpose |
-|-------------|-----------|---------|
-| Clinic Scheduling API | REST / FHIR | Real-time appointment booking |
-| EMR/CRM | HL7 FHIR / proprietary | Patient record handoff |
-| SMS/Email | Twilio / SendGrid | Appointment confirmation, follow-up |
-| Mobile App | React Native / Flutter | Native mobile intake experience |
-| Analytics | PostHog / Mixpanel | Usage tracking, triage accuracy monitoring |
+| Integration | Technology | Effort | Impact |
+|-------------|-----------|--------|--------|
+| Clinic Scheduling API | REST / FHIR | Medium | Real-time booking |
+| EMR/CRM | HL7 FHIR / proprietary | High | Patient record handoff |
+| SMS/Email Notifications | Twilio / SendGrid | Low | Appointment confirmations |
+| Persistent Sessions | Redis / PostgreSQL | Low | Sessions survive restarts |
+| Production Server | Gunicorn + Nginx | Low | Multi-worker, production-grade |
+| Agent Framework | Google ADK / LangGraph | Medium | Formal agent orchestration |
+| Mobile App | React Native / Flutter | High | Native mobile experience |
+| Analytics | PostHog / Mixpanel | Low | Usage + triage accuracy tracking |
