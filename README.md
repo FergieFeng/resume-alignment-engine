@@ -27,119 +27,126 @@ The app is deployed and accessible online:
 
 ```mermaid
 graph TD
-    BROWSER["User Browser<br/>Chat UI · Voice Controls · Language Selector"]
+    BROWSER["User Browser — Chat UI · Voice · 7 Languages"]
 
-    BROWSER -->|HTTP / HTTPS| FLASK
+    BROWSER -->|HTTP| FLASK["Flask API Server — Port 5002"]
+    FLASK --> ORCH["Orchestrator"]
+    FLASK --> SESSION["Session Store — In-Memory"]
+    FLASK -->|webhook| N8N_IN["n8n Webhook Receiver"]
 
-    subgraph CONTAINER["Docker Container — petcare-agent"]
-        FLASK["Flask API Server · Port 5002"]
-        FLASK --> ORCH
-        ORCH["Orchestrator · orchestrator.py"]
-        ORCH --> AGENTS
-        FLASK --> SESSION["Session Store · In-Memory Dict"]
+    ORCH --> A["A · Intake — LLM"]
+    ORCH --> B["B · Safety Gate — Rules"]
+    ORCH --> CC["C · Confidence — Rules"]
+    ORCH --> D["D · Triage — LLM"]
+    ORCH --> E["E · Routing — Rules"]
+    ORCH --> FF["F · Scheduling — Rules"]
+    ORCH --> GA["G · Guidance — LLM"]
 
-        subgraph AGENTS["7 Sub-Agents"]
-            direction LR
-            subgraph LLM["LLM-Powered · API Calls"]
-                A["A · Intake"]
-                D["D · Triage"]
-                G["G · Guidance"]
-            end
-            subgraph RULES["Rule-Based · Zero Cost"]
-                B["B · Safety Gate"]
-                C["C · Confidence"]
-                E["E · Routing"]
-                F["F · Scheduling"]
-            end
-        end
+    A -->|API call| OPENAI["OpenAI API — GPT-4.1 · Whisper · TTS"]
+    D -->|API call| OPENAI
+    GA -->|API call| OPENAI
+    GA -.->|fallback| CLAUDE["Anthropic Claude 3.5"]
 
-        RULES --> DATA["JSON Config Files<br/>clinic_rules · red_flags · slots"]
-    end
+    B --> DATA["JSON Config — clinic_rules · red_flags · slots"]
+    CC --> DATA
+    E --> DATA
+    FF --> DATA
 
-    LLM -->|API calls| OPENAI["OpenAI API<br/>GPT-4.1 · Whisper · TTS"]
-    LLM -->|fallback| ANTHROPIC["Anthropic API<br/>Claude 3.5 Sonnet"]
+    N8N_IN --> W1["n8n: Emergency Alert"]
+    N8N_IN --> W2["n8n: Clinic Summary Email"]
+    N8N_IN --> W3["n8n: Appt Confirmation"]
+    N8N_IN --> W4["n8n: Analytics Logger"]
 
-    FLASK -->|webhook POST| N8N
+    W1 --> SVC["Slack · Gmail · Google Sheets"]
+    W2 --> SVC
+    W3 --> SVC
+    W4 --> SVC
 
-    subgraph N8N["n8n — Actions Layer"]
-        direction LR
-        W1["Emergency Alert"]
-        W2["Clinic Summary"]
-        W3["Appt Confirm"]
-        W4["Analytics Log"]
-    end
-
-    N8N --> SERVICES["Slack · Gmail · Google Sheets · Calendar"]
-
-    style CONTAINER fill:#0f172a,color:#fff
-    style LLM fill:#dc2626,color:#fff
-    style RULES fill:#16a34a,color:#fff
-    style N8N fill:#ea580c,color:#fff
+    style A fill:#dc2626,color:#fff
+    style D fill:#dc2626,color:#fff
+    style GA fill:#dc2626,color:#fff
+    style B fill:#16a34a,color:#fff
+    style CC fill:#16a34a,color:#fff
+    style E fill:#16a34a,color:#fff
+    style FF fill:#16a34a,color:#fff
+    style N8N_IN fill:#ea580c,color:#fff
+    style W1 fill:#ea580c,color:#fff
+    style W2 fill:#ea580c,color:#fff
+    style W3 fill:#ea580c,color:#fff
+    style W4 fill:#ea580c,color:#fff
 ```
+
+**Color key:** 🔴 Red = LLM-powered agent (API call) · 🟢 Green = Rule-based agent (zero cost) · 🟠 Orange = n8n workflow
 
 ### Agent Pipeline Flow
 
 ```mermaid
 graph TD
-    START(("Pet Owner<br/>sends message"))
-    START --> A["A · Intake Agent<br/>LLM · Parse symptoms"]
-    A --> B["B · Safety Gate<br/>Rule-based · Red-flag scan"]
-    B --> B_CHECK{Emergency<br/>detected?}
-    B_CHECK -- YES --> EMRG["EMERGENCY<br/>Escalate immediately"]
-    B_CHECK -- NO --> C["C · Confidence Gate<br/>Rule-based · Validate fields"]
-    C --> C_CHECK{Fields<br/>complete?}
-    C_CHECK -- NO --> LOOP["Ask user to clarify"]
+    START(("Pet Owner sends message"))
+
+    START --> A["A · Intake Agent — LLM"]
+    A --> B["B · Safety Gate — Rules"]
+    B --> B_Q{"Emergency?"}
+    B_Q -- YES --> EM["EMERGENCY — Escalate now"]
+    B_Q -- NO --> CC["C · Confidence Gate — Rules"]
+    CC --> C_Q{"Fields complete?"}
+    C_Q -- NO --> LOOP["Clarify with user"]
     LOOP --> A
-    C_CHECK -- YES --> D["D · Triage Agent<br/>LLM · Urgency tier"]
-    D --> E["E · Routing Agent<br/>Rule-based · Appt type"]
-    E --> F["F · Scheduling Agent<br/>Rule-based · Propose slot"]
-    F --> G_AGENT["G · Guidance Agent<br/>LLM · Owner advice + summary"]
-    G_AGENT --> OUT1["Owner Response<br/>Urgency + Guidance + Appt"]
-    G_AGENT --> OUT2["Clinic Summary<br/>Structured JSON · English"]
+    C_Q -- YES --> D["D · Triage Agent — LLM"]
+    D --> E["E · Routing Agent — Rules"]
+    E --> FF["F · Scheduling Agent — Rules"]
+    FF --> GA["G · Guidance Agent — LLM"]
+    GA --> OUT1["Owner: Urgency + Guidance"]
+    GA --> OUT2["Clinic: Structured JSON"]
 
     style A fill:#dc2626,color:#fff
-    style B fill:#16a34a,color:#fff
-    style C fill:#16a34a,color:#fff
     style D fill:#dc2626,color:#fff
+    style GA fill:#dc2626,color:#fff
+    style B fill:#16a34a,color:#fff
+    style CC fill:#16a34a,color:#fff
     style E fill:#16a34a,color:#fff
-    style F fill:#16a34a,color:#fff
-    style G_AGENT fill:#dc2626,color:#fff
-    style EMRG fill:#991b1b,color:#fff
+    style FF fill:#16a34a,color:#fff
+    style EM fill:#991b1b,color:#fff
     style LOOP fill:#f59e0b,color:#000
 ```
 
-**Legend:** Red = LLM-powered (API call) · Green = Rule-based (local, zero cost)
+**Legend:** 🔴 Red = LLM-powered (API call, ~$0.002 each) · 🟢 Green = Rule-based (local, zero cost)
 
 ### Voice Architecture
 
 ```mermaid
 graph TD
-    subgraph T1["Tier 1 — Browser Native · Free"]
-        direction LR
-        M1["Mic"] --> SR["SpeechRecognition"] --> TX1["Text"]
-        RS1["Response"] --> SS["SpeechSynthesis"] --> SP1["Speaker"]
-    end
+    MIC["User Microphone"]
 
-    subgraph T2["Tier 2 — Whisper + TTS · ~$0.02/session"]
-        direction LR
-        M2["Mic"] --> REC["MediaRecorder"] --> WH["Whisper API"] --> TX2["Text"]
-        RS2["Response"] --> TTS["OpenAI TTS"] --> SP2["MP3 Audio"]
-    end
+    MIC -->|Tier 1| SR["Browser SpeechRecognition — Free"]
+    MIC -->|Tier 2| REC["MediaRecorder — audio/webm"]
+    MIC -->|Tier 3| RT["OpenAI Realtime API — WebSocket"]
 
-    subgraph T3["Tier 3 — Realtime API · ~$0.50/session · Stretch"]
-        direction LR
-        M3["Mic"] <--> RT["Realtime API · WebSocket"] <--> SP3["Speaker"]
-    end
+    SR --> TXT["Transcribed Text"]
+    REC -->|POST /api/voice/transcribe| WHISPER["Whisper API — $0.006/min"]
+    WHISPER --> TXT
 
-    TX1 --> PIPE["Agent Pipeline"]
-    TX2 --> PIPE
-    PIPE --> RS1
-    PIPE --> RS2
+    TXT --> PIPE["Agent Pipeline — 7 Agents"]
 
-    style T1 fill:#16a34a,color:#fff
-    style T2 fill:#2563eb,color:#fff
-    style T3 fill:#7c3aed,color:#fff
+    PIPE --> RESP["Agent Response Text"]
+
+    RESP -->|Tier 1| SYNTH["Browser SpeechSynthesis — Free"]
+    RESP -->|Tier 2| TTS["OpenAI TTS — $15/1M chars"]
+
+    SYNTH --> SPK["Speaker Output"]
+    TTS --> SPK
+
+    RT <-->|bidirectional| SPK_RT["Speaker — sub-500ms"]
+
+    style SR fill:#16a34a,color:#fff
+    style SYNTH fill:#16a34a,color:#fff
+    style WHISPER fill:#2563eb,color:#fff
+    style TTS fill:#2563eb,color:#fff
+    style RT fill:#7c3aed,color:#fff
+    style SPK_RT fill:#7c3aed,color:#fff
 ```
+
+**Color key:** 🟢 Green = Tier 1 (free, browser-native) · 🔵 Blue = Tier 2 (OpenAI Whisper + TTS) · 🟣 Purple = Tier 3 (Realtime API, stretch)
 
 ### Technology Stack at a Glance
 
