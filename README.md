@@ -26,152 +26,76 @@ The app is deployed and accessible online:
 ### System Architecture (Full Stack)
 
 ```mermaid
-graph TB
-    subgraph USER["👤 User Interface (Browser)"]
-        direction LR
-        UI_CHAT["💬 Chat UI<br/>HTML5 / CSS3 / JS"]
-        UI_VOICE["🎤 Voice Controls<br/>Mic / Speaker Toggle"]
-        UI_LANG["🌐 Language Selector<br/>7 Languages / RTL Support"]
-    end
+graph TD
+    BROWSER["User Browser<br/>Chat UI · Voice Controls · Language Selector"]
 
-    subgraph FRONTEND["Frontend Layer (Vanilla JS — No Build Step)"]
-        direction LR
-        APP_JS["app.js<br/>• Session management<br/>• Message handling<br/>• Voice recording (MediaRecorder)<br/>• Web Speech API (Tier 1 STT/TTS)<br/>• Language switching + RTL<br/>• UI state management"]
-    end
+    BROWSER -->|HTTP / HTTPS| FLASK
 
-    subgraph DOCKER["🐳 Docker Container (petcare-agent:latest)"]
+    subgraph CONTAINER["Docker Container — petcare-agent"]
+        FLASK["Flask API Server · Port 5002"]
+        FLASK --> ORCH
+        ORCH["Orchestrator · orchestrator.py"]
+        ORCH --> AGENTS
+        FLASK --> SESSION["Session Store · In-Memory Dict"]
 
-        subgraph FLASK["Flask API Server (api_server.py — Port 5002)"]
+        subgraph AGENTS["7 Sub-Agents"]
             direction LR
-            EP1["POST /api/session/start"]
-            EP2["POST /api/session/:id/message"]
-            EP3["GET /api/session/:id/summary"]
-            EP4["POST /api/voice/transcribe"]
-            EP5["POST /api/voice/synthesize"]
-            EP6["GET /api/health"]
-        end
-
-        subgraph ORCH["🧠 Orchestrator (orchestrator.py)"]
-            direction TB
-            ORCH_CORE["Coordinates 7-agent pipeline<br/>• Manages session state<br/>• Enforces safety rules<br/>• Handles branching logic<br/>• Assembles final response<br/>• Passes language to LLM agents"]
-        end
-
-        subgraph AGENTS["AI Sub-Agents (backend/agents/)"]
-            direction LR
-
-            subgraph LLM_AGENTS["🤖 LLM-Powered (API Calls)"]
-                A["Agent A<br/>Intake<br/>intake_agent.py"]
-                D["Agent D<br/>Triage<br/>triage_agent.py"]
-                G["Agent G<br/>Guidance + Summary<br/>guidance_summary.py"]
+            subgraph LLM["LLM-Powered · API Calls"]
+                A["A · Intake"]
+                D["D · Triage"]
+                G["G · Guidance"]
             end
-
-            subgraph RULE_AGENTS["⚡ Rule-Based (Local — No API Cost)"]
-                B["Agent B<br/>Safety Gate<br/>safety_gate_agent.py"]
-                C["Agent C<br/>Confidence Gate<br/>confidence_gate.py"]
-                E["Agent E<br/>Routing<br/>routing_agent.py"]
-                F["Agent F<br/>Scheduling<br/>scheduling_agent.py"]
+            subgraph RULES["Rule-Based · Zero Cost"]
+                B["B · Safety Gate"]
+                C["C · Confidence"]
+                E["E · Routing"]
+                F["F · Scheduling"]
             end
         end
 
-        subgraph DATA["📁 Data Layer (JSON Config Files)"]
-            direction LR
-            D1["clinic_rules.json<br/>Triage rules, routing maps"]
-            D2["red_flags.json<br/>50+ emergency triggers"]
-            D3["available_slots.json<br/>Mock appointment schedule"]
-        end
-
-        subgraph SESSION["💾 Session Store"]
-            SS["In-Memory Python Dict<br/>• Pet profile<br/>• Symptoms<br/>• Conversation history<br/>• Agent outputs<br/>• Language preference"]
-        end
+        RULES --> DATA["JSON Config Files<br/>clinic_rules · red_flags · slots"]
     end
 
-    subgraph EXTERNAL["☁️ External APIs (HTTPS)"]
+    LLM -->|API calls| OPENAI["OpenAI API<br/>GPT-4.1 · Whisper · TTS"]
+    LLM -->|fallback| ANTHROPIC["Anthropic API<br/>Claude 3.5 Sonnet"]
+
+    FLASK -->|webhook POST| N8N
+
+    subgraph N8N["n8n — Actions Layer"]
         direction LR
-        subgraph OPENAI["OpenAI API"]
-            GPT["GPT-4.1 / GPT-4.1-mini<br/>Intake parsing, Triage,<br/>Guidance generation"]
-            WHISPER["Whisper API<br/>Speech-to-Text<br/>7 languages"]
-            TTS["TTS API (tts-1)<br/>Text-to-Speech<br/>13 voices, multilingual"]
-        end
-        subgraph ANTHROPIC["Anthropic API"]
-            CLAUDE["Claude 3.5 Sonnet<br/>Configurable fallback<br/>Safety-critical reasoning"]
-        end
+        W1["Emergency Alert"]
+        W2["Clinic Summary"]
+        W3["Appt Confirm"]
+        W4["Analytics Log"]
     end
 
-    subgraph N8N["⚡ n8n Workflow Engine (Actions Layer)"]
-        direction TB
-        N8N_CORE["Receives webhook from Flask<br/>after intake completes"]
-        W1["🚨 Emergency Alert<br/>→ Slack + Email vet"]
-        W2["📧 Clinic Summary<br/>→ Email + Google Sheets"]
-        W3["📅 Appointment Confirm<br/>→ Email owner"]
-        W4["📊 Analytics Logger<br/>→ Google Sheets"]
-        N8N_CORE --> W1
-        N8N_CORE --> W2
-        N8N_CORE --> W3
-        N8N_CORE --> W4
-    end
+    N8N --> SERVICES["Slack · Gmail · Google Sheets · Calendar"]
 
-    subgraph INTEGRATIONS["🔗 External Services"]
-        direction LR
-        SLACK["Slack"]
-        EMAIL["Gmail / SMTP"]
-        SHEETS["Google Sheets"]
-        GCAL["Google Calendar"]
-    end
-
-    USER --> FRONTEND
-    FRONTEND -->|"HTTP/HTTPS"| FLASK
-    FLASK --> ORCH
-    ORCH --> AGENTS
-    AGENTS -->|"LLM calls"| EXTERNAL
-    RULE_AGENTS --> DATA
-    FLASK --> SESSION
-    EP4 -->|"Audio upload"| WHISPER
-    EP5 -->|"Text input"| TTS
-    FLASK -->|"POST webhook"| N8N
-    N8N --> INTEGRATIONS
-
-    style USER fill:#1e40af,color:#fff
-    style DOCKER fill:#0f172a,color:#fff
-    style FLASK fill:#1e293b,color:#fff
-    style ORCH fill:#7c3aed,color:#fff
-    style LLM_AGENTS fill:#dc2626,color:#fff
-    style RULE_AGENTS fill:#16a34a,color:#fff
-    style DATA fill:#0369a1,color:#fff
-    style EXTERNAL fill:#92400e,color:#fff
+    style CONTAINER fill:#0f172a,color:#fff
+    style LLM fill:#dc2626,color:#fff
+    style RULES fill:#16a34a,color:#fff
     style N8N fill:#ea580c,color:#fff
-    style INTEGRATIONS fill:#065f46,color:#fff
 ```
 
 ### Agent Pipeline Flow
 
 ```mermaid
-graph LR
-    START(("🐾 Pet Owner<br/>Sends Message")) --> A
-
-    A["🤖 Agent A<br/>INTAKE<br/>(LLM)<br/>Parse symptoms,<br/>build pet profile"] --> B
-
-    B["🛡️ Agent B<br/>SAFETY GATE<br/>(Rule-Based)<br/>Red-flag scan"] --> B_CHECK{Emergency?}
-
-    B_CHECK -->|"🚨 YES"| EMERGENCY["⚠️ EMERGENCY<br/>Immediate escalation<br/>Call vet now"]
-    B_CHECK -->|"✅ NO"| C
-
-    C["✅ Agent C<br/>CONFIDENCE GATE<br/>(Rule-Based)<br/>Field validation"] --> C_CHECK{Complete?}
-
-    C_CHECK -->|"❌ Missing fields"| CLARIFY["🔄 Ask user<br/>for clarification"]
-    CLARIFY --> A
-    C_CHECK -->|"✅ Complete"| D
-
-    D["📊 Agent D<br/>TRIAGE<br/>(LLM)<br/>Urgency classification"] --> E
-
-    E["🏥 Agent E<br/>ROUTING<br/>(Rule-Based)<br/>Appointment type"] --> F
-
-    F["📅 Agent F<br/>SCHEDULING<br/>(Rule-Based)<br/>Slot proposal"] --> G
-
-    G["📝 Agent G<br/>GUIDANCE + SUMMARY<br/>(LLM)<br/>Owner guidance +<br/>clinic summary"] --> OUTPUT
-
-    OUTPUT(("📤 Two Outputs"))
-    OUTPUT --> OWNER["👤 Owner Response<br/>Urgency + guidance +<br/>appointment"]
-    OUTPUT --> CLINIC["🏥 Clinic Summary<br/>Structured JSON<br/>(always English)"]
+graph TD
+    START(("Pet Owner<br/>sends message"))
+    START --> A["A · Intake Agent<br/>LLM · Parse symptoms"]
+    A --> B["B · Safety Gate<br/>Rule-based · Red-flag scan"]
+    B --> B_CHECK{Emergency<br/>detected?}
+    B_CHECK -- YES --> EMRG["EMERGENCY<br/>Escalate immediately"]
+    B_CHECK -- NO --> C["C · Confidence Gate<br/>Rule-based · Validate fields"]
+    C --> C_CHECK{Fields<br/>complete?}
+    C_CHECK -- NO --> LOOP["Ask user to clarify"]
+    LOOP --> A
+    C_CHECK -- YES --> D["D · Triage Agent<br/>LLM · Urgency tier"]
+    D --> E["E · Routing Agent<br/>Rule-based · Appt type"]
+    E --> F["F · Scheduling Agent<br/>Rule-based · Propose slot"]
+    F --> G_AGENT["G · Guidance Agent<br/>LLM · Owner advice + summary"]
+    G_AGENT --> OUT1["Owner Response<br/>Urgency + Guidance + Appt"]
+    G_AGENT --> OUT2["Clinic Summary<br/>Structured JSON · English"]
 
     style A fill:#dc2626,color:#fff
     style B fill:#16a34a,color:#fff
@@ -179,45 +103,42 @@ graph LR
     style D fill:#dc2626,color:#fff
     style E fill:#16a34a,color:#fff
     style F fill:#16a34a,color:#fff
-    style G fill:#dc2626,color:#fff
-    style EMERGENCY fill:#991b1b,color:#fff
-    style CLARIFY fill:#f59e0b,color:#000
+    style G_AGENT fill:#dc2626,color:#fff
+    style EMRG fill:#991b1b,color:#fff
+    style LOOP fill:#f59e0b,color:#000
 ```
 
-**Legend:** 🔴 Red = LLM-powered (API call, ~$0.002-0.004 each) · 🟢 Green = Rule-based (local, zero cost)
+**Legend:** Red = LLM-powered (API call) · Green = Rule-based (local, zero cost)
 
 ### Voice Architecture
 
 ```mermaid
-graph LR
-    subgraph TIER1["Tier 1: Browser Native (Free)"]
-        MIC1["🎤 Mic"] --> WSA["Web Speech API<br/>SpeechRecognition"]
-        WSA --> TEXT1["Text"]
-        RESP1["Response Text"] --> SYNTH["SpeechSynthesis"]
-        SYNTH --> SPEAKER1["🔊 Speaker"]
+graph TD
+    subgraph T1["Tier 1 — Browser Native · Free"]
+        direction LR
+        M1["Mic"] --> SR["SpeechRecognition"] --> TX1["Text"]
+        RS1["Response"] --> SS["SpeechSynthesis"] --> SP1["Speaker"]
     end
 
-    subgraph TIER2["Tier 2: OpenAI Whisper + TTS (~$0.02/session)"]
-        MIC2["🎤 Mic"] --> RECORD["MediaRecorder<br/>audio/webm"]
-        RECORD -->|"POST /api/voice/transcribe"| WHISPER2["Whisper API"]
-        WHISPER2 --> TEXT2["Text"]
-        RESP2["Response Text"] -->|"POST /api/voice/synthesize"| TTS2["OpenAI TTS<br/>(tts-1)"]
-        TTS2 --> SPEAKER2["🔊 MP3 Audio"]
+    subgraph T2["Tier 2 — Whisper + TTS · ~$0.02/session"]
+        direction LR
+        M2["Mic"] --> REC["MediaRecorder"] --> WH["Whisper API"] --> TX2["Text"]
+        RS2["Response"] --> TTS["OpenAI TTS"] --> SP2["MP3 Audio"]
     end
 
-    subgraph TIER3["Tier 3: Realtime API (~$0.50/session) — Stretch"]
-        MIC3["🎤 Mic"] <-->|"WebSocket<br/>bidirectional"| REALTIME["OpenAI Realtime API<br/>gpt-realtime"]
-        REALTIME <--> SPEAKER3["🔊 Speaker"]
+    subgraph T3["Tier 3 — Realtime API · ~$0.50/session · Stretch"]
+        direction LR
+        M3["Mic"] <--> RT["Realtime API · WebSocket"] <--> SP3["Speaker"]
     end
 
-    TEXT1 --> PIPELINE["Agent Pipeline"]
-    TEXT2 --> PIPELINE
-    PIPELINE --> RESP1
-    PIPELINE --> RESP2
+    TX1 --> PIPE["Agent Pipeline"]
+    TX2 --> PIPE
+    PIPE --> RS1
+    PIPE --> RS2
 
-    style TIER1 fill:#16a34a,color:#fff
-    style TIER2 fill:#2563eb,color:#fff
-    style TIER3 fill:#7c3aed,color:#fff
+    style T1 fill:#16a34a,color:#fff
+    style T2 fill:#2563eb,color:#fff
+    style T3 fill:#7c3aed,color:#fff
 ```
 
 ### Technology Stack at a Glance
@@ -243,12 +164,17 @@ See [TECH_STACK.md](TECH_STACK.md) for full details, runtime architecture, and a
 
 ```mermaid
 graph LR
-    DEV["🛠️ Local Dev<br/>Python + Flask<br/>Hot reload"] -->|"docker-compose up"| DOCKER_LOCAL["🐳 Local Docker<br/>petcare-agent + n8n<br/>Ports 5002 + 5678"]
-    DOCKER_LOCAL -->|"git push"| CLOUD["☁️ Cloud Deploy<br/>Render / Railway<br/>+ n8n Cloud"]
-    CLOUD -->|"Custom domain"| PROD["🌐 Production<br/>HTTPS · Health check<br/>Gunicorn + n8n workflows"]
+    DEV["Local Dev<br/>Python + Flask"]
+    DOCK["Local Docker<br/>petcare + n8n"]
+    CLOUD["Cloud Deploy<br/>Render + n8n Cloud"]
+    PROD["Production<br/>HTTPS · Gunicorn"]
+
+    DEV -- docker-compose up --> DOCK
+    DOCK -- git push --> CLOUD
+    CLOUD -- custom domain --> PROD
 
     style DEV fill:#16a34a,color:#fff
-    style DOCKER_LOCAL fill:#2563eb,color:#fff
+    style DOCK fill:#2563eb,color:#fff
     style CLOUD fill:#7c3aed,color:#fff
     style PROD fill:#dc2626,color:#fff
 ```
