@@ -2,41 +2,55 @@
 
 ## Purpose
 
-The system evaluates how well a candidate's resume aligns with a target job description and outputs structured, explainable recommendations.
+The PetCare Triage & Smart Booking Agent automates veterinary clinic intake by collecting pet symptoms, detecting emergencies, classifying urgency, routing to the correct appointment type, and producing structured handoff summaries for the clinical team -- all while providing safe, non-diagnostic guidance to pet owners.
 
 ## High-Level Architecture
 
 1. **Input Layer**
-   - Accepts raw job description and resume text (or parsed structured input).
-2. **Normalization Layer**
-   - Cleans and standardizes text, sections, dates, and skill terminology.
-3. **Analysis Layer (Specialist Agents)**
-   - Skill matching
-   - Experience relevance
-   - Achievement impact
-   - Gap detection
-4. **Scoring Layer**
-   - Applies weighted rubric to produce category and overall scores.
-5. **Synthesis Layer**
-   - Merges findings into a coherent narrative with recommendations.
-6. **Output Layer**
-   - Emits validated JSON per `output_schema.md`.
+   - Accepts owner free-text describing pet symptoms, species, and basic profile via web chat interface.
+
+2. **Intake Layer (Sub-Agent A)**
+   - Conducts adaptive, multi-turn symptom collection with species-specific follow-up questions.
+
+3. **Safety Layer (Sub-Agent B)**
+   - Rule-based red-flag detection; immediately escalates emergencies.
+
+4. **Validation Layer (Sub-Agent C)**
+   - Confidence gate: verifies required fields are captured and signals are coherent.
+
+5. **Analysis Layer (Sub-Agents D + E)**
+   - Triage Agent: classifies urgency tier (Emergency / Same-day / Soon / Routine).
+   - Routing Agent: maps symptom category to appointment type and provider pool.
+
+6. **Action Layer (Sub-Agent F)**
+   - Scheduling Agent: proposes available slots or generates booking request.
+
+7. **Output Layer (Sub-Agent G)**
+   - Produces owner-facing guidance ("do/don't while waiting") and clinic-facing structured JSON summary.
+
+8. **Orchestration Layer**
+   - Coordinates execution order, manages session state, resolves conflicts, enforces safety rules.
 
 ## Design Characteristics
 
-- **Composable:** each analyzer can be swapped independently.
-- **Auditable:** every score should map to supporting evidence.
-- **Schema-driven:** outputs must pass strict validation.
-- **Provider-agnostic:** orchestration can call different model providers.
+- **Safety-first:** red-flag detection runs before any routing or scheduling.
+- **Composable:** each sub-agent can be swapped or improved independently.
+- **Auditable:** every triage decision maps to symptom evidence.
+- **Schema-driven:** outputs follow strict validation for clinic integration.
+- **Provider-agnostic:** orchestration can call different LLM providers.
 
-## Non-Goals (Initial Phase)
+## Non-Goals (POC Phase)
 
-- Resume writing UI
-- ATS submission automation
-- Persistent user profile management
+- Providing medical diagnoses or prescriptions
+- Integrating with real EMR/CRM systems
+- Multi-clinic deployment
+- User accounts or persistent profiles
+- Payment processing
 
 ## Success Criteria
 
-- Stable output schema across runs
-- Reproducible scoring for same inputs and config
-- High recommendation usefulness (human-evaluated)
+- Triage tier agreement with clinic staff ≥ 80%
+- Routing accuracy ≥ 80%
+- Intake completeness ≥ 90%
+- Full intake flow completes in < 15 seconds (excluding interactive turns)
+- Zero missed emergency red flags in test set

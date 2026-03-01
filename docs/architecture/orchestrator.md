@@ -1,104 +1,109 @@
 # Orchestrator Agent
 
-This document describes the role and responsibilities of the **Orchestrator Agent** in the  
-**7-Agent Job Fit & Application Strategy System**.
+This document describes the role and responsibilities of the **Orchestrator Agent** in the PetCare Triage & Smart Booking Agent system.
 
-The Orchestrator is the **control and decision layer** of the system.  
-Even though the final output structure is fixed, the Orchestrator is required to manage  
-*how* that output is produced.
+The Orchestrator is the **control and decision layer** of the system. It coordinates sub-agent execution, manages session state, enforces safety rules, and produces the final combined response.
 
 ---
 
 ## Why an Orchestrator Is Needed
 
-A fixed output schema defines **what the final result looks like**, but it does not define:
+The 7-sub-agent architecture defines *what* each component does, but not:
 
-- which agents should run,  
-- in what order they should run,  
-- how to resolve conflicting conclusions,  
-- how to apply decision rules consistently.
+- which agents should run and in what order,
+- how to handle branching (red flags → emergency escalation; low confidence → clarification loop),
+- how to manage session state across agents,
+- how to enforce safety invariants consistently.
 
-Without an Orchestrator, the system would be a collection of independent agent outputs  
-rather than a coherent decision-making system.
+Without an Orchestrator, the system would be a collection of disconnected agents rather than a coherent triage decision system.
 
 ---
 
 ## Core Responsibilities
 
-The Orchestrator performs five key functions:
-
 ### 1. Workflow Control
-- Determines the execution order of agents.  
-- Handles optional steps (e.g., Hidden Signal Agent, Evidence Agent).  
-- Skips unnecessary steps based on user preferences or early-stop conditions.
 
-### 2. Context Management
-- Builds a shared request context from user inputs.  
-- Passes only relevant, normalized data to each agent.  
-- Ensures consistency across agent calls.
+- Executes agents in the defined order: A → B → C → D → E → F → G
+- Handles branching:
+  - **Red flag detected** (B) → skip to emergency escalation, bypass booking
+  - **Low confidence** (C) → loop back to Intake for clarifying questions or route to receptionist
+  - **No slots available** (F) → generate manual booking request instead
+- Supports early termination for emergencies
 
-### 3. Decision Arbitration
-- Resolves conflicts between agent outputs.  
-- Applies conservative logic when signals disagree.  
-- Example:  
-  - High match score + high hidden risk → downgrade from **Apply** to **Edge Apply**.
+### 2. Session State Management
 
-### 4. Business Rule Execution
-- Enforces system-level rules, such as:  
-  - match score thresholds  
-  - risk-based downgrades  
-  - when resume suggestions should be generated  
-- These rules are centralized in the Orchestrator, not embedded in sub-agents.
+- Maintains a shared session context across all sub-agents:
+  - `pet_profile`, `symptoms`, `timeline`, `red_flags`, `triage_tier`, `routing`, `booking_request`, `confidence`
+- Passes only relevant data to each sub-agent
+- Ensures state consistency across the intake flow
 
-### 5. Output Schema Enforcement
-- Validates that the final output conforms to the canonical schema.  
-- Fills default values if optional agents are skipped.  
-- Guarantees consistent, evaluable outputs.
+### 3. Safety Enforcement
+
+- **Invariant:** Safety Gate (B) always runs before any triage or routing
+- **Invariant:** Emergency red flags always trigger escalation messaging
+- **Invariant:** Agent never provides diagnoses or prescriptions
+- **Invariant:** Low-confidence cases are flagged for human review
+
+### 4. Decision Arbitration
+
+- Resolves conflicts between agent outputs (e.g., symptoms suggest urgency but owner says "acting normal")
+- Applies conservative logic: when signals disagree, escalate rather than downgrade
+- Example: High symptom severity + owner says "seems fine" → keep at higher urgency with a note
+
+### 5. Output Assembly
+
+- Combines all sub-agent outputs into:
+  - **Owner-facing response:** urgency level, next steps, appointment options, do/don't guidance
+  - **Clinic-facing summary:** structured JSON with pet profile, symptoms, triage, routing, confidence
+- Validates output against the canonical schema
 
 ---
 
 ## Orchestrator Workflow
 
-1. Receive structured outputs from sub-agents.  
-2. Evaluate decision rules and risk signals.  
-3. Resolve inconsistencies or ambiguities.  
-4. Assemble the canonical JSON output.  
-5. Generate the human-readable report.
+```
+1. Receive owner input
+2. Run Intake Agent (A) → collect structured data
+3. Run Safety Gate (B) → check for red flags
+   └── If red flag → EMERGENCY response → END
+4. Run Confidence Gate (C) → verify completeness
+   └── If low confidence → ask clarifying questions (loop to A) or flag for receptionist
+5. Run Triage Agent (D) → assign urgency tier
+6. Run Routing Agent (E) → determine appointment type
+7. Run Scheduling Agent (F) → propose slots
+8. Run Guidance & Summary Agent (G) → generate outputs
+9. Assemble final response
+10. Return to owner + store clinic summary
+```
 
 ---
 
 ## Inputs and Outputs
 
 ### Inputs
-- Structured JSON outputs from all executed sub-agents.  
-- User preferences (e.g., decision-only vs decision + suggestions).
+- Owner messages (free-text)
+- Session state (accumulated across turns)
+- Clinic configuration (rules, schedule, red-flag list)
 
 ### Outputs
-- **Canonical JSON output** (used for evaluation and comparison).  
-- **Human-readable report** (used by end users).
+- **Owner-facing response** (natural language)
+- **Clinic-facing summary** (structured JSON per `output_schema.md`)
+- **Session metadata** (confidence, processing time, agent trace)
 
 ---
 
 ## Design Principles
 
-- **Separation of concerns:** sub-agents analyze; the Orchestrator decides.  
-- **Deterministic structure:** output format is fixed.  
-- **Flexible logic:** execution paths adapt to the case.  
-- **Explainability:** decisions are traceable and evidence-backed.
+- **Separation of concerns:** sub-agents analyze; the Orchestrator coordinates and decides.
+- **Safety-first:** emergency detection always runs; conservative defaults when uncertain.
+- **Deterministic branching:** workflow paths are explicit and testable.
+- **Explainability:** every triage decision is traceable through the agent chain.
+- **Graceful degradation:** if a sub-agent fails, the system falls back to human review rather than crashing.
 
 ---
 
 ## Scope Notes
 
-- The Orchestrator does not perform analysis itself.  
-- It does not rewrite resumes or generate new content directly.  
-- Its role is to **coordinate, decide, and finalize** the system output.
-
----
-
-## Summary
-
-The Orchestrator Agent transforms multiple independent analyses into a single,  
-consistent, and explainable decision. It is the component that makes the  
-multi-agent system behave like a unified decision-support engine rather than  
-a set of disconnected LLM calls.
+- The Orchestrator does not perform triage or routing analysis itself.
+- It does not provide diagnoses or medical advice.
+- Its role is to **coordinate, enforce safety, manage state, and assemble output**.

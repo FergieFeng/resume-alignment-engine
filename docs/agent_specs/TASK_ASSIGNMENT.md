@@ -1,6 +1,6 @@
-# Agent Task Assignment (One Page)
+# Agent Task Assignment
 
-This page is the single source of truth for assigning ownership and tracking progress for the 7-agent design workstream.
+This page is the single source of truth for assigning ownership and tracking progress for the PetCare sub-agent design workstream.
 
 ## How to Use
 
@@ -11,24 +11,15 @@ This page is the single source of truth for assigning ownership and tracking pro
 ## Team Assignment Table
 
 | Workstream | Folder | Owner | Backup | Status | Due Date |
-|---|---|---|---|---|---|
-| JD Analysis Agent | `docs/agent_specs/jd_analysis/` | (assign) | (assign) | Not Started | (date) |
-| Resume Profiling Agent | `docs/agent_specs/resume_profiling/` | (assign) | (assign) | Not Started | (date) |
-| Hard Match Agent | `docs/agent_specs/hard_match/` | (assign) | (assign) | Not Started | (date) |
-| Hidden Signal Agent *(optional but recommended)* | `docs/agent_specs/hidden_signal/` | (assign) | (assign) | Not Started | (date) |
-| Application Strategy Agent | `docs/agent_specs/application_strategy/` | (assign) | (assign) | Not Started | (date) |
-| Evidence Citation Agent *(optional but recommended)* | `docs/agent_specs/evidence_citation/` | (assign) | (assign) | Not Started | (date) |
+|-----------|--------|-------|--------|--------|----------|
+| Intake Agent (A) | `docs/agent_specs/intake/` | (assign) | (assign) | Not Started | (date) |
+| Safety Gate Agent (B) | `docs/agent_specs/safety_gate/` | (assign) | (assign) | Not Started | (date) |
+| Confidence Gate Agent (C) | `docs/agent_specs/confidence_gate/` | (assign) | (assign) | Not Started | (date) |
+| Triage Agent (D) | `docs/agent_specs/triage/` | (assign) | (assign) | Not Started | (date) |
+| Routing Agent (E) | `docs/agent_specs/routing/` | (assign) | (assign) | Not Started | (date) |
+| Scheduling Agent (F) | `docs/agent_specs/scheduling/` | (assign) | (assign) | Not Started | (date) |
+| Guidance & Summary Agent (G) | `docs/agent_specs/guidance_summary/` | (assign) | (assign) | Not Started | (date) |
 | Orchestrator Agent | `docs/agent_specs/orchestrator/` | (assign) | (assign) | Not Started | (date) |
-
-## Agent Folders
-
-- `jd_analysis`
-- `resume_profiling`
-- `hard_match`
-- `hidden_signal`
-- `application_strategy`
-- `evidence_citation`
-- `orchestrator`
 
 ## Required Deliverables (Per Agent Owner)
 
@@ -36,9 +27,7 @@ Each owner must complete all items in their assigned folder:
 
 - `README.md` updated with owner name and scope
 - `input_output_contract.md` with required and optional fields
-- one strategy/rules doc:
-  - `prompt_strategy.md`, or
-  - `scoring_rules.md` / `risk_rubric.md` / `decision_rules.md` / `mapping_rules.md` / `orchestration_rules.md`
+- One strategy/rules doc (e.g., `prompt_strategy.md`, `red_flag_rules.md`, `triage_rules.md`)
 - `fixtures/sample_input.json`
 - `fixtures/sample_output.json`
 
@@ -48,10 +37,13 @@ Each owner must complete all items in their assigned folder:
 - Ambiguous/missing-input behavior is documented
 - At least one fixture pair can be replayed by another teammate
 - No overlap with responsibilities owned by other agents
+- No medical diagnoses or prescriptions in agent output
 
 ## Integration Owner Checklist (Orchestrator Owner)
 
-- Confirm all agent contracts are mutually compatible
-- Resolve schema mismatches before integration
-- Document conflict-resolution rules in orchestrator spec
-- Prepare one end-to-end fixture using all available agent outputs
+- [ ] Confirm all agent contracts are mutually compatible
+- [ ] Resolve schema mismatches before integration
+- [ ] Document safety enforcement rules
+- [ ] Document conflict-resolution rules
+- [ ] Prepare one end-to-end fixture using all agent outputs
+- [ ] Verify emergency escalation path works correctly

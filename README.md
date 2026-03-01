@@ -1,115 +1,199 @@
-# Resume Alignment Engine
+# PetCare Triage & Smart Booking Agent
 
-The **Resume Alignment Engine** is a documentation-first, multi-agent decision-support system
-designed to help job seekers decide **whether to apply** for a role and **how to strengthen
-their application** in a structured and explainable way.
+**Created by:** Fergie Feng
 
-The system prioritizes **decision quality and transparency**, rather than automatic content generation.
+An AI-powered veterinary triage and smart booking agent that automates pet symptom intake, urgency classification, appointment routing, and provides safe owner guidance -- built as part of the MMAI 2026 Capstone at Queen's University.
+
+The system reduces front-desk workload and improves clinical routing by automating the end-to-end intake workflow: symptom collection, red-flag detection, triage urgency scoring, appointment booking support, and vet-facing structured summaries, while providing safe, non-diagnostic "do/don't" guidance for pet owners during wait time.
 
 ---
 
-## What Problem This Solves
+## Live Demo
 
-Job seekers typically face three questions when reviewing a job posting:
+The app is deployed and accessible online:
 
-1. Should I apply for this role?
-2. What risks or expectations are not explicitly stated?
-3. If I apply, what should I improve in my resume?
+- **URL:** *(deployment URL -- to be added)*
+- **Username:** `petcare`
+- **Password:** Reach out to the MMAI Capstone team
 
-Most existing tools focus on keyword matching or full resume rewriting.  
-This project instead focuses on **decision-first analysis**, backed by evidence and clear reasoning.
+> First load after inactivity may take ~30-60 seconds (free tier cold start). After that it's instant.
+
+---
+
+## Quick Start (Docker -- Recommended)
+
+Requires only [Git](https://git-scm.com/) and [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+### macOS / Linux
+
+```bash
+git clone https://github.com/FergieFeng/resume-alignment-engine.git
+cd resume-alignment-engine
+git checkout PetCare
+./start.sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/FergieFeng/resume-alignment-engine.git
+cd resume-alignment-engine
+git checkout PetCare
+powershell -ExecutionPolicy Bypass -File start.ps1
+```
+
+The script prompts for API keys on first run, pulls latest code, builds the Docker container, and starts the server.
+Open [http://localhost:5002](http://localhost:5002) in your browser.
+
+> After someone pushes changes, just run the same script again -- it pulls and rebuilds automatically. Keys are saved locally and never need to be re-entered.
+
+---
+
+## Quick Start (Local Python)
+
+```bash
+git clone https://github.com/FergieFeng/resume-alignment-engine.git
+cd resume-alignment-engine
+git checkout PetCare
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate        # macOS/Linux
+# .venv\Scripts\activate         # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env and add your API keys
+
+# Start the server
+cd backend
+python api_server.py
+```
+
+Open [http://localhost:5002](http://localhost:5002) in your browser.
+
+---
+
+## Project Structure
+
+```
+├── frontend/                    # Frontend files
+│   ├── index.html               # Main HTML (intake chat UI)
+│   ├── js/
+│   │   └── app.js               # Client-side logic
+│   └── styles/
+│       └── main.css             # Styles
+├── backend/                     # Backend files
+│   ├── api_server.py            # Flask API server
+│   ├── orchestrator.py          # Orchestrator agent (coordinates sub-agents)
+│   ├── agents/                  # Sub-agent implementations
+│   │   ├── intake_agent.py      # Sub-Agent A: Adaptive symptom intake
+│   │   ├── safety_gate_agent.py # Sub-Agent B: Red-flag detection
+│   │   ├── confidence_gate.py   # Sub-Agent C: Field validation + confidence
+│   │   ├── triage_agent.py      # Sub-Agent D: Urgency classification
+│   │   ├── routing_agent.py     # Sub-Agent E: Symptom → appointment type
+│   │   ├── scheduling_agent.py  # Sub-Agent F: Slot proposal / booking
+│   │   └── guidance_summary.py  # Sub-Agent G: Owner guidance + vet summary
+│   ├── data/                    # Clinic rules, mock schedules, red-flag lists
+│   │   ├── clinic_rules.json
+│   │   ├── available_slots.json
+│   │   └── red_flags.json
+│   └── logs/                    # Runtime logs
+├── docs/                        # Documentation
+│   ├── architecture/            # System-level design docs
+│   ├── agent_specs/             # Per-agent design work packages
+│   └── current_version/         # Preserved docs from main branch
+├── src/                         # Original source (from main branch)
+├── technical_report.md          # Technical report (assignment deliverable)
+├── PROJECT_PLAN.md              # Project plan and timeline
+├── requirements.txt             # Python dependencies
+├── .env.example                 # Environment variable template
+└── .gitignore
+```
 
 ---
 
 ## System Overview
 
-The system uses a **7-agent architecture** coordinated by a central **Orchestrator Agent**:
+The PetCare Agent uses a **7-sub-agent architecture** coordinated by a central **Orchestrator Agent**:
 
-- Analyze job descriptions and resumes independently
-- Compute objective fit and identify gaps
-- Infer hidden role expectations (optional)
-- Produce a clear application recommendation:
-  **Apply / Edge Apply / No Apply**
-- Generate actionable resume change suggestions (not full rewriting)
-
-Each agent has a single responsibility and communicates via structured JSON outputs.
+| # | Sub-Agent | Responsibility |
+|---|-----------|---------------|
+| A | **Intake Agent** | Collect pet profile + chief complaint + timeline; ask adaptive follow-ups by symptom area |
+| B | **Safety Gate Agent** | Detect emergency red flags → immediate escalation messaging |
+| C | **Confidence Gate Agent** | Verify required fields and confidence; route to clarification or receptionist review |
+| D | **Triage Agent** | Assign urgency tier (Emergency / Same-day / Soon / Routine) with rationale + confidence |
+| E | **Routing Agent** | Classify symptom category → appointment type / provider pool |
+| F | **Scheduling Agent** | Propose available slots or generate booking request payload |
+| G | **Guidance & Summary Agent** | Generate owner "do/don't" guidance + structured clinic-ready intake summary |
 
 ---
 
-## Documentation Map
+## Documentation
 
-- `docs/architecture/system_overview.md` – overall architecture and design rationale  
-- `docs/architecture/workflow_technical.md` – technical workflow with flowchart, optional steps, and I/O examples  
-- `docs/architecture/workflow_non_technical.md` – non-technical workflow overview for general readers  
-- `docs/architecture/agents.md` – one-line responsibilities and I/O contracts for all agents  
-- `docs/architecture/orchestrator.md` – orchestration logic, rules, and decision ownership  
-- `docs/architecture/output_schema.md` – canonical JSON output schema  
-- `docs/architecture/scope_and_roles.md` – project scope, ownership, and collaboration model  
-- `docs/agent_specs/` – per-agent assignable design work packages  
-- `docs/current_version/` – preserved snapshot of the previous docs version  
+| Document | Description |
+|----------|-------------|
+| [docs/architecture/system_overview.md](docs/architecture/system_overview.md) | Overall architecture and design rationale |
+| [docs/architecture/workflow_technical.md](docs/architecture/workflow_technical.md) | Technical workflow with flowchart, I/O contracts, and examples |
+| [docs/architecture/workflow_non_technical.md](docs/architecture/workflow_non_technical.md) | Non-technical workflow overview for general readers |
+| [docs/architecture/agents.md](docs/architecture/agents.md) | Agent responsibilities and I/O contracts |
+| [docs/architecture/orchestrator.md](docs/architecture/orchestrator.md) | Orchestration logic, rules, and decision ownership |
+| [docs/architecture/output_schema.md](docs/architecture/output_schema.md) | Canonical JSON output schema |
+| [docs/architecture/scope_and_roles.md](docs/architecture/scope_and_roles.md) | Project scope, ownership, and collaboration model |
+| [docs/agent_specs/](docs/agent_specs/) | Per-agent assignable design work packages |
+| [PROJECT_PLAN.md](PROJECT_PLAN.md) | Sprint-by-sprint project plan |
+| [technical_report.md](technical_report.md) | Technical report (assignment deliverable) |
 
 ---
 
 ## Core Design Principles
 
-- **Decision-first design**: analysis supports decisions, not content generation
-- **Explainability**: every conclusion is traceable to evidence
+- **Decision-first design**: triage and routing support decisions, not diagnoses
+- **Safety by default**: red-flag detection with mandatory escalation; never auto-diagnose
+- **Explainability**: every triage decision is traceable to symptom evidence
 - **Modularity**: agents are independent and single-responsibility
 - **Evaluability**: outputs follow a fixed, validated schema
-- **Scoped automation**: resume suggestions, not automatic rewriting
+- **Privacy-by-design**: no long-term storage of owner PII; session-only memory
 
 ---
 
 ## Outputs
 
-The system produces two aligned outputs:
+The system produces two aligned outputs per intake session:
 
-1. **Canonical JSON Output**  
-   - Used for evaluation, comparison, and downstream processing
+1. **Owner-Facing Response**
+   - Urgency level + what happens next + appointment confirmation/request + safe do/don't guidance
 
-2. **Human-Readable Report**  
-   - A presentation layer derived from the canonical JSON
+2. **Clinic-Facing Structured Summary** (JSON)
+   - Pet profile, symptom timeline, triage tier + red flags, suggested category, confidence score, notes
 
-See `docs/architecture/output_schema.md` for full details.
+See [docs/architecture/output_schema.md](docs/architecture/output_schema.md) for full details.
 
-## Repository Structure
+---
 
-- `docs/architecture/`: active system-level design docs
-- `docs/agent_specs/`: per-agent design folders for teammate assignment
-- `docs/current_version/`: preserved pre-restructure docs
-- `src/`: implementation space for code contributors
+## Success Metrics (MVP)
 
-## Quick Local Test (JD Analysis)
-
-1. Create and activate a virtual environment.
-2. Install dependencies:
-   - `pip install -r requirements.txt`
-3. Fill `.env`:
-   - set `OPENAI_API_KEY`
-4. Run the test UI:
-   - `streamlit run src/ui/app.py`
-5. Paste a JD (or click **Load Sample JD**) and run analysis.
+| Metric | Target |
+|--------|--------|
+| Triage tier agreement with clinic staff | ≥ 80% |
+| Routing accuracy (correct appointment type) | ≥ 80% |
+| Intake completeness (required fields captured) | ≥ 90% |
+| Receptionist intake time reduction | 30%+ |
+| Re-booking / mis-booking reduction | 20%+ |
 
 ---
 
 ## Current Status
 
-This repository contains **documentation-first scaffolding** for the system design.
+This branch contains the **PetCare Triage & Smart Booking Agent** project scaffolding, architecture documentation, and implementation stubs.
 
-No production implementation is included.
-
----
-
-## Suggested Next Steps (Optional)
-
-- Implement agent interfaces using an agent framework (e.g., Google ADK)
-- Add schema validation and example output fixtures
-- Extend the system with additional optional agents (e.g., industry-specific signals)
+Active development is in progress on the `PetCare` branch.
 
 ---
 
 ## Summary
 
-This project demonstrates how a **multi-agent architecture with a central orchestrator**
-can deliver structured, explainable, and actionable decision support for job applications,
-while maintaining clear scope and academic rigor.
+This project demonstrates how a **multi-agent architecture with a central orchestrator** can deliver structured, safe, and explainable decision support for veterinary intake triage and appointment booking, while maintaining clear scope and academic rigor.

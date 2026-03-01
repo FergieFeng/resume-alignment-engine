@@ -1,75 +1,87 @@
 # Scope and Roles
 
-This document defines the **collaboration model** for the **Resume Alignment Engine**.
-It is designed for **team-based development**, where **each team member owns one sub-agent**
-(design + prompt + optional code), and one person owns system integration.
+This document defines the **collaboration model** for the PetCare Triage & Smart Booking Agent.
+It is designed for **team-based development**, where each team member can own one or more sub-agents.
 
 ---
 
 ## Collaboration Goal
 
-- Split the system into **independent sub-agents** with clear **input/output contracts**.
-- Enable teammates to work **in parallel** with minimal coordination overhead.
-- Integrate through a single **Orchestrator** that enforces workflow rules and the canonical output schema.
+- Split the system into **independent sub-agents** with clear **input/output contracts**
+- Enable teammates to work **in parallel** with minimal coordination overhead
+- Integrate through a single **Orchestrator** that enforces workflow rules and safety invariants
 
 ---
 
 ## In Scope
 
-- Designing each sub-agent’s **micro-workflow** (2–5 steps), prompt strategy, and edge cases
+- Designing each sub-agent's **micro-workflow**, prompt strategy, and edge cases
 - Defining **input/output JSON** contracts per agent (schema-aligned)
 - Implementing agent logic as:
   - **Prompt-only** (acceptable for POC), or
-  - **Prompt + light code** (optional), e.g., scoring helpers, validators
+  - **Prompt + light code** (scoring helpers, validators, rule-based checks)
 - Adding **example fixtures** for each agent (sample input + sample output)
-- Orchestrator integration and schema validation
+- Orchestrator integration, safety enforcement, and schema validation
+- Synthetic test data creation and evaluation
+- Owner-facing chat interface (web-based)
+- Clinic-facing summary output
 
 ---
 
-## Out of Scope (for this phase)
+## Out of Scope (POC Phase)
 
-- Full resume rewriting or end-to-end resume generation by default
-- Production UI, user accounts, storage, authentication
-- Automated job application submission
-- Legal/HR/compliance advice or guarantees of outcomes
+- Medical diagnoses or prescription advice
+- Integration with real EMR/CRM/scheduling systems
+- User accounts, authentication, or persistent profiles
+- Multi-clinic deployment or multi-tenant architecture
+- Payment processing
+- Real patient data (all data is synthetic)
+- SMS/email notification delivery
+- Mobile app development
 
 ---
 
-## Ownership Model (Who Owns What)
+## Ownership Model
 
 ### Role: Orchestrator / Integrator (1 owner)
-- Owns **execution order**, optional branching, and rule enforcement
+- Owns **execution order**, branching logic, and safety enforcement
+- Manages session state across sub-agents
 - Resolves conflicts between agent outputs
 - Enforces canonical schema and produces:
-  - canonical JSON
-  - human-readable report
-- Owns integration tests and end-to-end demo run
+  - Owner-facing response
+  - Clinic-facing structured summary
+- Owns integration tests and end-to-end demo runs
 
 ### Role: Sub-Agent Owner (1 owner per agent)
 Each sub-agent owner is responsible for:
-- **Micro-workflow design** (2–5 steps)
+- **Micro-workflow design** (2-5 steps)
 - Prompt + reasoning constraints
 - Input/Output contract
 - Edge cases and failure behavior
 - One example fixture (input + output)
 
+### Role: Frontend Developer (1 owner)
+- Owns the chat-based intake UI
+- Connects to the Flask API
+- Displays owner-facing response (urgency, slots, guidance)
+- Optional: clinic-facing summary view
+
 ---
 
-## Sub-Agent Assignments (7-Agent Strong Plan)
+## Sub-Agent Assignments
 
 | Agent # | Agent | Owner | Deliverables (Minimum) |
-|---:|---|---|---|
-| 1 | JD Analysis Agent | (assign name) | Micro-workflow + I/O JSON + 1 fixture |
-| 2 | Resume Profiling Agent | (assign name) | Micro-workflow + I/O JSON + 1 fixture |
-| 3 | Hard Match Agent | (assign name) | Scoring logic + I/O JSON + 1 fixture |
-| 4 | Hidden Signal Agent *(optional but recommended)* | (assign name) | Risk rubric + I/O JSON + 1 fixture |
-| 5 | Application Strategy Agent + Resume Suggestions | (assign name) | Decision rules + suggestion templates + I/O JSON + 1 fixture |
-| 6 | Evidence / Citation Agent *(optional but recommended)* | (assign name) | Claim→evidence mapping rules + I/O JSON + 1 fixture |
-| 7 | Orchestrator Agent | (assign integrator) | Flow control + conflict resolution + schema enforcement + E2E fixture |
+|--------:|-------|-------|----------------------|
+| A | Intake Agent | (assign) | Micro-workflow + I/O JSON + 1 fixture |
+| B | Safety Gate Agent | (assign) | Red-flag rules + I/O JSON + 1 fixture |
+| C | Confidence Gate Agent | (assign) | Validation logic + I/O JSON + 1 fixture |
+| D | Triage Agent | (assign) | Urgency classification rules + I/O JSON + 1 fixture |
+| E | Routing Agent | (assign) | Symptom→appointment mapping + I/O JSON + 1 fixture |
+| F | Scheduling Agent | (assign) | Slot proposal logic + I/O JSON + 1 fixture |
+| G | Guidance & Summary Agent | (assign) | Guidance templates + summary format + I/O JSON + 1 fixture |
+| -- | Orchestrator Agent | (assign integrator) | Flow control + safety rules + E2E fixture |
 
-> Notes:
-> - If team size is smaller, merge #4 into #5 and/or #6 into #7.
-> - Optional agents (#4, #6) can be skipped while still producing schema-valid output.
+> If team size is smaller, agents can be grouped (e.g., B+C together, F+G together).
 
 ---
 
@@ -77,20 +89,17 @@ Each sub-agent owner is responsible for:
 
 A sub-agent is considered complete when:
 - It produces **schema-aligned JSON** with required keys
-- It handles missing/ambiguous inputs gracefully (returns warnings)
+- It handles missing/ambiguous inputs gracefully (returns warnings or requests clarification)
 - It has at least **one fixture** that can be replayed
-- It does not overreach into other agents’ responsibilities
+- It does not overreach into other agents' responsibilities
+- It does not provide medical diagnoses or prescriptions
 
 ---
 
 ## Working Agreement
 
-- **Fixed schema, flexible logic:** schema remains stable; workflows can iterate
-- **Single responsibility:** agents analyze; Orchestrator decides
+- **Fixed schema, flexible logic:** schema remains stable; agent workflows can iterate
+- **Single responsibility:** each agent does one thing well
+- **Safety-first:** conservative defaults when uncertain
 - **Small iterations:** changes should be testable with fixtures
-
----
-
-## Summary
-
-This ownership model enables **parallel development** by assigning each teammate a sub-agent with clear deliverables, while keeping integration centralized in the Orchestrator. It reduces coordination cost and makes the multi-agent system easier to evaluate and demo.
+- **Privacy-by-design:** no persistent PII storage

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetCare Triage & Smart Booking</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <h1>🐾 PetCare Triage Assistant</h1>
+                <p class="subtitle">AI-powered veterinary symptom intake & smart booking</p>
+            </div>
+        </header>
+
+        <main class="chat-container">
+            <div id="chat-messages" class="chat-messages">
+                <!-- Messages will be inserted here -->
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <textarea
+                        id="user-input"
+                        placeholder="Describe your pet's symptoms..."
+                        rows="2"
+                        autofocus
+                    ></textarea>
+                    <button id="send-btn" onclick="sendMessage()">Send</button>
+                </div>
+                <p class="disclaimer">
+                    This tool provides triage support only — not medical diagnoses.
+                    Always consult a veterinarian for your pet's health concerns.
+                </p>
+            </div>
+        </main>
+
+        <aside id="summary-panel" class="summary-panel hidden">
+            <h2>Clinic Summary</h2>
+            <div id="summary-content"></div>
+        </aside>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

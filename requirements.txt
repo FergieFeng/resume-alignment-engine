@@ -1,5 +1,9 @@
-streamlit
+flask
 python-dotenv
 pydantic
+openai
+anthropic
 langchain
 langchain-openai
+langchain-anthropic
+streamlit

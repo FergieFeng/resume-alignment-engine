@@ -1,194 +1,215 @@
-# Technical Workflow (Flowchart + I/O Contracts + Example)
+# Technical Workflow (Flowchart + I/O Contracts + Examples)
 
 This is the technical workflow reference for engineers.
 
 For the non-technical version, see `docs/architecture/workflow_non_technical.md`.
 
+---
+
 ## 1) End-to-End Flow
 
-1. Receive `job_description` and `resume`.
-2. Validate input quality and minimum completeness.
-3. Parse job requirements with JD Analysis.
-4. Build candidate profile with Resume Profiling.
-5. Compute objective fit with Hard Match.
-6. Optionally run:
-   - Hidden Signal analysis,
-   - Evidence Citation mapping.
-7. Orchestrator merges all signals and applies decision rules.
-8. Produce decision (`Apply` / `Edge Apply` / `No Apply`) and recommendations.
-9. Return schema-aligned output.
+1. Owner initiates intake via web chat.
+2. **Intake Agent** collects pet profile, chief complaint, and symptom details through adaptive follow-up questions.
+3. **Safety Gate** checks for emergency red flags (breathing difficulty, bleeding, toxin ingestion, seizures, collapse).
+4. If red flag detected → emergency escalation response → END.
+5. **Confidence Gate** validates required fields and assesses data confidence.
+6. If low confidence → loop back to Intake for clarifying questions or route to receptionist.
+7. **Triage Agent** assigns urgency tier (Emergency / Same-day / Soon / Routine) with rationale.
+8. **Routing Agent** classifies symptom category and maps to appointment type / provider pool.
+9. **Scheduling Agent** proposes available slots or generates booking request.
+10. **Guidance & Summary Agent** produces owner "do/don't" guidance + clinic-ready structured summary.
+11. Orchestrator assembles and returns the final response.
+
+---
 
 ## 2) Agent-by-Agent Execution
 
-### Step 1: JD Parsing (Required)
+### Step 1: Intake (Required)
 
-**Agent:** JD Analysis Agent
+**Agent:** Intake Agent (A)
 
-- Extract required skills, preferred skills, responsibilities, and seniority signals.
-- Output: structured JD signals (JSON).
+- Collect: species, breed, age, weight, chief complaint, symptom timeline
+- Ask adaptive follow-ups based on symptom area
+- Output: structured pet profile + symptom data (JSON)
 
-### Step 2: Resume Profiling (Required)
+### Step 2: Safety Gate (Required)
 
-**Agent:** Resume Profiling Agent
+**Agent:** Safety Gate Agent (B)
 
-- Convert resume text into structured profile (skills, experience, projects, domain).
-- Output: candidate profile (JSON).
+- Check symptoms against emergency red-flag list
+- Output: `red_flag_detected` boolean, `escalation_message` if true
 
-### Step 3: Hard Matching (Required)
+### Step 3: Confidence Gate (Required)
 
-**Agent:** Hard Match Agent
+**Agent:** Confidence Gate Agent (C)
 
-- Compute objective alignment between JD and candidate profile.
-- Output: match score, strengths, and critical gaps.
+- Validate required fields, detect conflicts, assess confidence
+- Output: confidence score, missing fields, recommended action
 
-### Step 4: Hidden Signal Interpretation (Optional, Recommended)
+### Step 4: Triage (Required)
 
-**Agent:** Hidden Signal Agent
+**Agent:** Triage Agent (D)
 
-- Infer implicit expectations (ownership, ambiguity tolerance, true seniority).
-- Output: hidden risk signals.
+- Classify urgency tier with evidence and confidence
+- Output: urgency tier, rationale, confidence score
 
-### Step 5: Application Strategy (Required)
+### Step 5: Routing (Required)
 
-**Agent:** Application Strategy Agent
+**Agent:** Routing Agent (E)
 
-- Combine hard-match signals and optional hidden signals.
-- Output: decision + rationale + resume change suggestions.
+- Map symptom category to appointment type and provider pool
+- Output: symptom category, appointment type, provider list
 
-### Step 6: Evidence Mapping (Optional, Recommended)
+### Step 6: Scheduling (Required for MVP)
 
-**Agent:** Evidence Citation Agent
+**Agent:** Scheduling Agent (F)
 
-- Map major claims to JD and resume evidence.
-- Output: claim-to-evidence mappings.
+- Propose slots based on urgency and appointment type
+- Output: proposed slots array or booking request payload
 
-### Step 7: Orchestration and Finalization (Required)
+### Step 7: Guidance & Summary (Required)
 
-**Agent:** Orchestrator Agent
+**Agent:** Guidance & Summary Agent (G)
 
-- Resolve cross-agent conflicts and enforce schema consistency.
-- Produce canonical JSON output and human-readable report.
+- Generate safe owner guidance and clinic-ready summary
+- Output: owner guidance text + clinic summary JSON
+
+---
 
 ## 3) Workflow Flowchart
 
-```text
-User Input (Resume + JD)
-        |
-        v
-+--------------------+
-| JD Analysis Agent  |
-+--------------------+
-        |
-        v
-+------------------------+
-| Resume Profiling Agent |
-+------------------------+
-        |
-        v
-+------------------+
-| Hard Match Agent |
-+------------------+
-        |
-        v
-[Hidden Signal?] --Yes--> Hidden Signal Agent
-        | No
-        v
-+---------------------------+
-| Application Strategy      |
-| + Resume Suggestions      |
-+---------------------------+
-        |
-        v
-[Evidence Enabled?] --Yes--> Evidence Agent
-        | No
-        v
-+------------------+
-| Orchestrator     |
-+------------------+
-        |
-        v
-Final Output (JSON + Readable Report)
-```
-
 ```mermaid
 flowchart TD
-    A[User Input\nResume + JD] --> B[JD Analysis Agent]
-    B --> C[Resume Profiling Agent]
-    C --> D[Hard Match Agent]
-    D --> E{Hidden Signal?}
-    E -->|Yes| F[Hidden Signal Agent]
-    E -->|No| G[Application Strategy + Resume Suggestions]
-    F --> G
-    G --> H{Evidence Enabled?}
-    H -->|Yes| I[Evidence Agent]
-    H -->|No| J[Orchestrator]
-    I --> J
-    J --> K[Final Output\nJSON + Readable Report]
+    A[Owner Input\nPet symptoms via chat] --> B[Intake Agent\nCollect pet profile + symptoms]
+    B --> C[Safety Gate\nRed-flag detection]
+    C --> D{Red Flag?}
+    D -->|Yes| E[EMERGENCY ESCALATION\nImmediate messaging + stop booking]
+    D -->|No| F[Confidence Gate\nValidate fields + confidence]
+    F --> G{Confidence OK?}
+    G -->|Low| H[Ask Clarifying Questions\nor Route to Receptionist]
+    H --> B
+    G -->|OK| I[Triage Agent\nAssign urgency tier]
+    I --> J[Routing Agent\nMap to appointment type]
+    J --> K[Scheduling Agent\nPropose available slots]
+    K --> L[Guidance & Summary Agent\nOwner guidance + clinic summary]
+    L --> M[Orchestrator\nAssemble final response]
+    M --> N[Owner Response +\nClinic-Facing Summary]
 ```
 
-## 4) Input Contract (Required vs Optional)
+---
 
-### Required Input
+## 4) Input Contract
 
-- `job_description` (string)
-- `resume` (string)
+### Required Input (from owner)
 
-### Optional Input
+- `species` (string: "dog", "cat", "other")
+- `chief_complaint` (string: free-text description of symptoms)
 
-- `preferences.output_mode` (`decision_only` | `decision_plus_suggestions`)
-- `preferences.target_seniority` (string)
-- `preferences.industry_focus` (string)
-- `preferences.include_hidden_signal` (boolean)
-- `preferences.include_evidence_mapping` (boolean)
+### Collected During Intake (by agent)
 
-### Example Input
+- `pet_name` (string)
+- `breed` (string)
+- `age` (string)
+- `weight` (string, with unit)
+- `symptom_details` (object: area-specific details)
+- `timeline` (string: when symptoms started)
+- `eating_drinking` (string: normal / reduced / none)
+- `energy_level` (string: normal / reduced / lethargic)
+- `additional_notes` (string)
+
+### Example Input (after intake)
 
 ```json
 {
-  "job_description": "Senior Data Analyst role requiring SQL, stakeholder communication, and dashboard ownership.",
-  "resume": "Data Analyst with 5 years experience. Built dashboards in Tableau, led reporting automation, collaborated with product teams.",
-  "preferences": {
-    "output_mode": "decision_plus_suggestions",
-    "target_seniority": "senior",
-    "industry_focus": "SaaS",
-    "include_hidden_signal": true,
-    "include_evidence_mapping": true
-  }
+  "pet_name": "Bella",
+  "species": "dog",
+  "breed": "Golden Retriever",
+  "age": "7 years",
+  "weight": "30 kg",
+  "chief_complaint": "Vomiting multiple times since yesterday, not eating",
+  "symptom_details": {
+    "area": "gastrointestinal",
+    "vomiting_frequency": "4 times in 24 hours",
+    "diarrhea": false,
+    "blood_in_vomit": false,
+    "foreign_object_possible": "unsure"
+  },
+  "timeline": "Started yesterday afternoon",
+  "eating_drinking": "not eating, drinking small amounts",
+  "energy_level": "reduced",
+  "additional_notes": "Got into garbage 2 days ago"
 }
 ```
 
-## 5) Output Contract (Required vs Optional)
+---
 
-### Required Output
+## 5) Output Contract
 
-- `version` (string)
-- `request_id` (string)
-- `decision` (`Apply` | `Edge Apply` | `No Apply`)
-- `overall_score` (0-100)
-- `category_scores` (array)
-- `strengths` (array)
-- `gaps` (array)
-- `recommendations` (array)
-- `metadata` (object)
+### Owner-Facing Response
 
-### Optional Output
+- `urgency_level` (string: "Emergency" | "Same-day" | "Soon" | "Routine")
+- `next_steps` (string: what happens next)
+- `appointment` (object: proposed slot or booking status)
+- `guidance` (string: safe do/don't while waiting)
 
-- `hidden_signals` (array)
-- `evidence_map` (array/object)
-- `warnings` (array)
-
-### Example Output
+### Clinic-Facing Summary (JSON)
 
 ```json
 {
   "version": "1.0.0",
-  "request_id": "req_2026_02_25_001",
-  "decision": "Edge Apply",
-  "overall_score": 74
+  "session_id": "session_2026_03_01_001",
+  "pet_profile": {
+    "name": "Bella",
+    "species": "dog",
+    "breed": "Golden Retriever",
+    "age": "7 years",
+    "weight": "30 kg"
+  },
+  "chief_complaint": "Vomiting multiple times since yesterday, not eating",
+  "symptom_details": {
+    "area": "gastrointestinal",
+    "vomiting_frequency": "4 times in 24 hours",
+    "diarrhea": false,
+    "blood_in_vomit": false,
+    "foreign_object_possible": "unsure"
+  },
+  "timeline": "Started yesterday afternoon, possible garbage ingestion 2 days ago",
+  "red_flags": [],
+  "triage": {
+    "urgency_tier": "Same-day",
+    "rationale": "Persistent vomiting (4x/24h) with reduced appetite and possible foreign material ingestion. No emergency red flags but warrants same-day evaluation.",
+    "confidence": 0.85
+  },
+  "routing": {
+    "symptom_category": "gastrointestinal",
+    "appointment_type": "sick_visit_urgent",
+    "provider_pool": ["Dr. Chen", "Dr. Patel"],
+    "special_requirements": "May need abdominal imaging"
+  },
+  "scheduling": {
+    "proposed_slots": [
+      "2026-03-01 14:00",
+      "2026-03-01 15:30"
+    ],
+    "booking_status": "proposed"
+  },
+  "confidence": {
+    "overall": 0.85,
+    "intake_completeness": 0.92,
+    "needs_review": false
+  },
+  "metadata": {
+    "processing_time_ms": 8200,
+    "agents_executed": ["intake", "safety_gate", "confidence_gate", "triage", "routing", "scheduling", "guidance_summary"]
+  }
 }
 ```
 
+---
+
 ## 6) Notes
 
-- Optional agents can be skipped while keeping output schema-valid.
-- Final contract should align with `docs/architecture/output_schema.md`.
+- Emergency red flags bypass all agents after Safety Gate and produce an immediate escalation response.
+- The Confidence Gate can loop back to Intake up to 2 times before routing to receptionist review.
+- All agents must complete within the 15-second latency target (measured end-to-end).
+- For canonical field definitions, see `docs/architecture/output_schema.md`.
